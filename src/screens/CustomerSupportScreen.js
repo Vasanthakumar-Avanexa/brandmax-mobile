@@ -1,119 +1,256 @@
-import React, { useState } from 'react';
-import { StyleSheet, View, Text, TextInput, Image, Alert } from 'react-native';
-import { Button, Divider } from 'react-native-elements';
-import poppins from '../utils/fonts'; 
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, { useEffect, useState } from 'react';
+import {
+  Modal,
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Linking,
+  TextInput,
+} from 'react-native';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import fetchData from '../config/fetchData';
+import poppins from '../utils/fonts';
+import showToast from '../utils/common_fn';
 
-const COLORS = {
-  white: '#ffffff',
-  primary: '#D45500',
-  black: '#000000',
-  border: '#ddd',
-  placeholder: '#888',
-};
+const CustomerSupportModal = ({ visible, onClose }) => {
+  const [userData, setUserData] = useState(null);
 
-const LOGO = require('../../assets/images/logo_back.png'); 
+  const [name, setName] = useState('');
+  const [mobile, setMobile] = useState('');
+  const [comment, setComment] = useState('');
+  const [errors, setErrors] = useState({});
 
-const CustomerSupportScreen = () => {
-  const [message, setMessage] = useState('');
+  useEffect(() => {
+    if (!visible) return;
 
-  const handleSend = () => {
-    if (!message.trim()) {
-      Alert.alert('Error', 'Please enter a message');
-      return;
+    const loadUserData = async () => {
+      try {
+        const userDataString = await AsyncStorage.getItem('UserData');
+
+        if (userDataString) {
+          const user = JSON.parse(userDataString);
+          setUserData(user);
+          setName(user?.owner_name || user?.shop_name || '');
+          setMobile(user?.phone || '');
+        } else {
+          setUserData(null);
+          setName('');
+          setMobile('');
+        }
+
+        setComment('');
+        setErrors({});
+      } catch (error) {
+        console.error('Error fetching user data:', error);
+      }
+    };
+
+    loadUserData();
+  }, [visible]);
+
+  const validate = () => {
+    const newErrors = {};
+    if (!name.trim()) newErrors.name = 'Name is required';
+    if (!mobile.trim()) newErrors.mobile = 'Mobile number is required';
+    if (!comment.trim()) newErrors.comment = 'Issue description is required';
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const RaiseTicket = async () => {
+    if (!validate()) return;
+
+    const payload = {
+      name,
+      mobile,
+      comment,
+    };
+
+    console.log('Raise Issue Payload:', payload);
+
+    try {
+      const res=await fetchData.raiseIssue(payload);
+      console.log('Raise Issue Response:', res);
+      
+      if(res.success)
+      {
+        showToast('Your issue has been raised. Our support team will contact you soon.');
+        setName('');
+        setMobile('');
+        setComment(''); 
+      } else {
+        showToast(res.message || 'Failed to raise issue. Please try again later.');
+      }
+      onClose();
+    } catch (error) {
+      console.error('Error raising ticket:', error);
     }
-
-    Alert.alert('Success', 'Your message has been sent!');
-    setMessage('');
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.imageContainer}>
-        <Image source={LOGO} style={styles.logo} resizeMode="contain" />
+    <Modal animationType="fade" transparent visible={visible} onRequestClose={onClose}>
+      <View style={styles.overlay}>
+        <View style={styles.container}>
+          <Text style={styles.title}>Customer Support</Text>
+
+          {!userData?.owner_name && !userData?.shop_name && (
+            <>
+              <TextInput
+                placeholder="Your Name"
+                style={[styles.input, errors.name && styles.errorInput]}
+                value={name}
+                onChangeText={(t) => {
+                  setName(t);
+                  if (errors.name) setErrors({ ...errors, name: '' });
+                }}
+              />
+              {errors.name && <Text style={styles.errorText}>{errors.name}</Text>}
+            </>
+          )}
+
+          {!userData?.phone && (
+            <>
+              <TextInput
+                placeholder="Mobile Number"
+                keyboardType="phone-pad"
+                style={[styles.input, errors.mobile && styles.errorInput]}
+                value={mobile}
+                onChangeText={(t) => {
+                  setMobile(t);
+                  if (errors.mobile) setErrors({ ...errors, mobile: '' });
+                }}
+              />
+              {errors.mobile && (
+                <Text style={styles.errorText}>{errors.mobile}</Text>
+              )}
+            </>
+          )}
+
+          <>
+            <TextInput
+              placeholder="Describe your issue"
+              multiline
+              style={[
+                styles.input,
+                styles.textArea,
+                errors.comment && styles.errorInput,
+              ]}
+              value={comment}
+              onChangeText={(t) => {
+                setComment(t);
+                if (errors.comment) setErrors({ ...errors, comment: '' });
+              }}
+            />
+            {errors.comment && (
+              <Text style={styles.errorText}>{errors.comment}</Text>
+            )}
+          </>
+
+          <TouchableOpacity style={styles.raiseBtn} onPress={RaiseTicket}>
+            <Text style={styles.raiseText}>Raise Issue</Text>
+          </TouchableOpacity>
+
+          <View style={styles.iconRow}>
+            <TouchableOpacity onPress={() => Linking.openURL('tel:+919876543210')}>
+              <Icon name="phone" size={26} color="#4CAF50" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() =>
+                Linking.openURL('https://wa.me/919876543210?text=Hi%20Support')
+              }
+            >
+              <Icon name="whatsapp" size={26} color="#25D366" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => Linking.openURL('mailto:support@yourapp.com')}
+            >
+              <Icon name="email" size={26} color="#FF5722" />
+            </TouchableOpacity>
+          </View>
+
+          <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
+            <Text style={styles.closeText}>Close</Text>
+          </TouchableOpacity>
+        </View>
       </View>
-
-      <Divider style={styles.divider} />
-
-      <View style={styles.formContainer}>
-        <Text style={styles.title}>Contact Us</Text>
-
-        <TextInput
-          placeholder="Type your message here..."
-          placeholderTextColor={COLORS.placeholder}
-          value={message}
-          onChangeText={setMessage}
-          multiline
-          numberOfLines={6}
-          textAlignVertical="top"
-          style={styles.textInput}
-        />
-
-        <Button
-          title="Send Message"
-          onPress={handleSend}
-          buttonStyle={styles.sendButton}
-          titleStyle={styles.sendButtonText}
-          containerStyle={styles.buttonContainer}
-        />
-      </View>
-    </View>
+    </Modal>
   );
 };
 
-export default CustomerSupportScreen;
+export default CustomerSupportModal;
+
 
 const styles = StyleSheet.create({
-  container: {
+  overlay: {
     flex: 1,
-    backgroundColor: COLORS.white,
-    padding: 15,
-  },
-  imageContainer: {
-    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  logo: {
-    width: 280,
-    height: 180,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: '#eee',
-    marginVertical: 10,
-  },
-  formContainer: {
-    paddingHorizontal: 10,
+  container: {
+    width: '90%',
+    backgroundColor: '#fff',
+    padding: 20,
+    borderRadius: 16,
+    elevation: 6,
   },
   title: {
-    fontSize: 26,
-    fontFamily: poppins.semiBold,
-    color: COLORS.black,
+    fontSize: 18,
+    marginBottom: 12,
     textAlign: 'center',
-    marginVertical: 20,
+    fontFamily: poppins.bold,
   },
-  textInput: {
-    height: 140,
+  input: {
     borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 8,
+    borderColor: '#DDD',
+    borderRadius: 10,
     padding: 12,
-    fontSize: 16,
-    color: COLORS.black,
-    backgroundColor: '#fdfdfd',
-    marginVertical: 12,
+    fontSize: 15,
+    marginBottom: 4,
+    fontFamily: poppins.regular,
+  },
+  textArea: {
+    height: 80,
     textAlignVertical: 'top',
   },
-  buttonContainer: {
-    marginVertical: 10,
+  errorInput: {
+    borderColor: '#FF4D4F',
   },
-  sendButton: {
-    backgroundColor: COLORS.primary,
+  errorText: {
+    color: '#FF4D4F',
+    fontSize: 12,
+    marginBottom: 6,
+    marginLeft: 4,
+    fontFamily: poppins.regular,
+  },
+  raiseBtn: {
+    backgroundColor: '#F58502',
+    padding: 14,
     borderRadius: 10,
-    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 6,
   },
-  sendButtonText: {
-    fontFamily: poppins.semiBold,
+  raiseText: {
+    color: '#fff',
     fontSize: 16,
+    fontFamily: poppins.semiBold,
+  },
+  iconRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginVertical: 16,
+  },
+  closeBtn: {
+    alignItems: 'center',
+  },
+  closeText: {
+    color: 'red',
+    fontSize: 16,
+    fontFamily: poppins.regular,
   },
 });

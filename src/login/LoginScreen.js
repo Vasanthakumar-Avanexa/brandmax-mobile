@@ -1,29 +1,5 @@
-// import React from 'react';
-// import { View, Text, Button, TouchableOpacity } from 'react-native';
-// import { useDispatch } from 'react-redux';
-// import { setLoggedIn } from '../store/authSlice';
-// import { useNavigation } from '@react-navigation/native';
-
-// const LoginScreen = () => {
-//   const navigation=useNavigation();
-//   console.log("LoginScreen Component called ===>");
-
-//   const handleLogin = () => {
-//     console.log("Login button pressed ===>");
-    
-//     navigation.navigate('OtpVerify');
-//   };
-//   return (
-//     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-//       <Text>Login Screen</Text>
-//       <TouchableOpacity onPress={handleLogin}><Text>hello login button</Text></TouchableOpacity>
-//     </View>
-//   );
-// };
-// export default LoginScreen;
-
 import { useNavigation } from '@react-navigation/native';
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   StyleSheet,
@@ -36,30 +12,73 @@ import {
   Text,
   TouchableOpacity,
   TextInput,
+  ActivityIndicator,
 } from 'react-native';
+import fetchData from '../config/fetchData';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import showToast from '../utils/common_fn';
+import poppins from '../utils/fonts';
 
 const { height: windowHeight, width: windowWidth } = Dimensions.get('window');
 
 const LoginScreen = () => {
   const navigation = useNavigation();
+  const [userInput, setUserInput] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = () => {
-    console.log("Login button pressed ===>");
-    
-    navigation.navigate('OtpVerify');
+  const handleVerify = async () => {
+    const trimmedInput = userInput.trim();
+
+    if (!trimmedInput) {
+      showToast('Please enter your mobile number or email');
+      return;
+    }
+
+    setLoading(true);
+
+    const payload = { user: trimmedInput };
+
+    try {
+      const response = await fetchData.Logins(payload);
+
+      console.log('Login API Response:', response);
+
+      if (response.success || response.data) {
+        await AsyncStorage.setItem('UserData', JSON.stringify(response.data));
+        showToast('OTP sent successfully!');
+        navigation.navigate('OtpVerify', { userInput: trimmedInput });
+      } else {
+        showToast(response.message || 'Failed to send OTP. Please try again.');
+      }
+    } catch (err) {
+      console.error('Login Error:', err.response?.data || err.message);
+      const errorMsg =
+        err.response?.data?.message ||
+        err.message ||
+        'Network error. Please check your connection and try again.';
+      showToast(errorMsg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRegisterNavigation = () => {
+    navigation.navigate('RequestRegister');
   };
 
   return (
     <KeyboardAvoidingView
       style={styles.keyboardView}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : -70}>
-      
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : -70}
+    >
+      <StatusBar backgroundColor="#D45500" barStyle="light-content" />
+
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ flexGrow: 1 }}
-        keyboardShouldPersistTaps="handled">
-
+        keyboardShouldPersistTaps="handled"
+      >
         <View style={styles.topContainer}>
           <Image
             source={require('../../assets/images/logo_back.png')}
@@ -70,24 +89,40 @@ const LoginScreen = () => {
 
         <View style={styles.bottomContainer}>
           <Text style={styles.title}>Enter your Mobile Number</Text>
+          <Text style={styles.title1}>
+            Please Enter your Mobile Number to Verify your Account
+          </Text>
 
-         <Text style={styles.title1}>Please Enter your Mobile Number to Verify your Account</Text>
           <View style={styles.inputContainer}>
-            <Text style={styles.prefix}>+91</Text>
-            <View style={styles.line} />
             <TextInput
               style={styles.input}
-              placeholder="Enter your mobile number"
+              placeholder="Enter your Email or Mobile"
               placeholderTextColor="#B0B0B0"
-              keyboardType="numeric"
-              maxLength={10}
               returnKeyType="done"
+              value={userInput}
+              onChangeText={setUserInput}
+              autoCapitalize="none"
+              keyboardType="default"
+              onSubmitEditing={handleVerify}
             />
           </View>
 
-          <TouchableOpacity onPress={handleLogin} style={styles.verifyButton}>
-            <Text style={styles.verifyText}>Verify</Text>
-          </TouchableOpacity>
+          {loading ? (
+            <TouchableOpacity disabled style={styles.verifyButton}>
+              <ActivityIndicator size="small" color="#fff" />
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity onPress={handleVerify} style={styles.verifyButton}>
+              <Text style={styles.verifyText}>Verify</Text>
+            </TouchableOpacity>
+          )}
+
+          <View style={styles.registerContainer}>
+            <Text style={styles.registerText}>Don't have an account? </Text>
+            <TouchableOpacity onPress={handleRegisterNavigation}>
+              <Text style={styles.registerLink}>Register</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -124,13 +159,15 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     fontWeight: '600',
     color: '#000',
+    fontFamily: poppins.semiBold,
   },
-   title1: {
+  title1: {
     fontSize: 18,
     textAlign: 'center',
     marginBottom: 20,
     fontWeight: '600',
     color: '#B0B0B0',
+    fontFamily: poppins.semiBold,
   },
   inputContainer: {
     flexDirection: 'row',
@@ -141,22 +178,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     marginBottom: 25,
   },
-  prefix: {
-    fontSize: 16,
-    color: '#000',
-    marginRight: 8,
-  },
-  line: {
-    width: 1,
-    height: 20,
-    backgroundColor: 'grey',
-  },
   input: {
     flex: 1,
     fontSize: 16,
     color: '#000',
     paddingVertical: 10,
     paddingLeft: 10,
+    fontFamily: poppins.regular,
   },
   verifyButton: {
     backgroundColor: '#D45500',
@@ -169,8 +197,26 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: '#fff',
     fontWeight: '600',
+    fontFamily: poppins.semiBold,
+  },
+  registerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 25,
+  },
+  registerText: {
+    fontSize: 16,
+    color: '#000',
+    fontFamily: poppins.regular,
+  },
+  registerLink: {
+    fontSize: 16,
+    color: '#D45500',
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+    fontFamily: poppins.semiBold,
   },
 });
 
 export default LoginScreen;
-	

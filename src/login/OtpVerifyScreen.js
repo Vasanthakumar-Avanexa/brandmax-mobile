@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   StyleSheet,
@@ -9,38 +9,86 @@ import {
   Platform,
   Dimensions,
   Text,
-  TouchableOpacity
+  TouchableOpacity,
+  ActivityIndicator
 } from 'react-native';
 import { OtpInput } from 'react-native-otp-entry';
-import { setLoggedIn } from '../store/authSlice';
+import { setLoggedIn, setGuestUser } from '../store/authSlice';
 import { useDispatch } from 'react-redux';
+import fetchData from '../config/fetchData';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import showToast from '../utils/common_fn';
 
 const windowHeight = Dimensions.get('window').height;
 const windowWidth = Dimensions.get('window').width;
 
-const OtpVerifyScreen = () => {
+const OtpVerifyScreen = ({ route, navigation }) => {
+  const { userInput } = route.params;
   const dispatch = useDispatch();
 
-  const handleLogin = () => {
-    console.log("OTP Verified, dispatching logout ===>");
-    
-    dispatch(setLoggedIn(true));
-    // Optional: Navigate to login screen
-    // navigation.navigate('Login');
+  const [otp, setOtp] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleLogin = async () => {
+    if (!otp || otp.length !== 4) {
+      showToast('Please enter a valid 4-digit OTP');
+      return;
+    }
+
+    setLoading(true);
+
+    const payload = {
+      user: userInput,
+      otp: Number(otp)
+    };
+
+    try {
+      const response = await fetchData.OTPVerify(payload);
+
+      console.log("API Response:", response);
+
+      if (response.success || response.data) {
+        const token = response.data?.token || response.token;
+        await AsyncStorage.setItem('token', token);
+
+        const userData = response.data?.user || response.data;
+        await AsyncStorage.setItem('UserData', JSON.stringify(userData));
+
+        await AsyncStorage.setItem('isGuestUser', 'false');
+
+        showToast('Login successful!');
+
+        dispatch(setGuestUser(false));
+        dispatch(setLoggedIn(true));
+        
+        console.log('Login state updated, waiting for navigator switch...');
+
+      } else {
+        showToast(response.message || 'Invalid OTP. Please try again.');
+      }
+    } catch (error) {
+      console.log("Error:", error.response?.data || error.message);
+      const errorMsg = error.response?.data?.message
+        || error.message
+        || 'Something went wrong. Please try again.';
+      showToast(errorMsg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <KeyboardAvoidingView
       style={styles.keyboardView}
-       behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : -70}
-      >
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : -70}
+    >
       <StatusBar backgroundColor="#D45500" barStyle="light-content" />
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}>
-
+        contentContainerStyle={styles.scrollContent}
+      >
         <View style={styles.topContainer}>
           <Image
             source={require('../../assets/images/logo_back.png')}
@@ -52,13 +100,16 @@ const OtpVerifyScreen = () => {
         <View style={styles.bottomContainer}>
           <View style={styles.container}>
             <Text style={styles.title}>Verify Phone Number</Text>
-      
+
             <OtpInput
               numberOfDigits={4}
               focusColor="#000"
               borderColor="#B0B0B0"
               onTextChange={(text) => console.log('OTP:', text)}
-              onFilled={(text) => console.log('Complete OTP:', text)}
+              onFilled={(text) => {
+                console.log('Complete OTP:', text);
+                setOtp(text);
+              }}
               textInputProps={{
                 keyboardType: 'number-pad',
               }}
@@ -69,16 +120,22 @@ const OtpVerifyScreen = () => {
                 focusStickStyle: styles.focusStick,
               }}
             />
-      
-            <TouchableOpacity onPress={handleLogin} style={styles.verifyButton}>
-              <Text style={styles.verifyText}>Verify OTP</Text>
-            </TouchableOpacity>
-      
+
+            {loading ? (
+              <TouchableOpacity disabled style={styles.verifyButton}>
+                <ActivityIndicator size="small" color="#fff" />
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity onPress={handleLogin} style={styles.verifyButton}>
+                <Text style={styles.verifyText}>Verify OTP</Text>
+              </TouchableOpacity>
+            )}
+
             <View style={styles.resendContainer}>
               <Text style={styles.resendText}>Didn't receive a code? </Text>
               <Text style={styles.resendLink1}>Resend OTP!</Text>
             </View>
-      
+
             <TouchableOpacity style={styles.checkButton}>
               <Text style={styles.checkText}>Check Number?</Text>
             </TouchableOpacity>

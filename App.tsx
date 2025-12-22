@@ -1,62 +1,106 @@
-/**
- * App Entry Point
- * Updated: November 10, 2025
- */
-
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { StatusBar, StyleSheet } from 'react-native';
 import {
-  StatusBar,
-  StyleSheet,
-  Dimensions,
-} from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
-import { Provider, useSelector } from 'react-redux';
+  NavigationContainer,
+  createNavigationContainerRef,
+} from '@react-navigation/native';
+import { Provider, useSelector, useDispatch } from 'react-redux';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 import store from './src/store';
 import AuthNavigator from './src/navigation/AuthNavigator';
 import AppNavigator from './src/navigation/AppNavigator';
 import SplashScreen from './src/screens/SplashScreen';
+import CustomerSupportButton from './src/screens/CustomerSupportButton';
+import { setLoggedIn, setGuestUser } from './src/store/authSlice';
 
-const { height } = Dimensions.get('window');
-
-const Color = {
-  primary: '#E11D38',
-  logoBackground: '#F8F8F8',
-  white: '#FFFFFF',
-  black: '#000000',
-  cloudyGrey: '#9E9E9E',
-};
-
-const Inter = {
-  Bold: 'Poppins-Bold',
-  SemiBold: 'Poppins-SemiBold',
-  Medium: 'Poppins-Medium',
-};
+export const navigationRef = createNavigationContainerRef();
 
 function MainApp() {
-  const [loading, setLoading] = React.useState(true);
-  const loggedIn = useSelector((state: any) => state.auth.loggedIn);
+  const [loading, setLoading] = useState(true);
+  const [currentRoute, setCurrentRoute] = useState<string | undefined>();
 
-  React.useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 2000);
-    return () => clearTimeout(timer);
-  }, []);
+  const loggedIn = useSelector((state: any) => state.auth.loggedIn);
+  const isGuestUser = useSelector((state: any) => state.auth.isGuestUser);
+  const dispatch = useDispatch();
+
+  useEffect(() => {
+    const initializeApp = async () => {
+      try {
+        const token = await AsyncStorage.getItem('token');
+        const guestUserValue = await AsyncStorage.getItem('isGuestUser');
+        if (token && token !== 'null' && token !== 'undefined') {
+          dispatch(setLoggedIn(true));
+          dispatch(setGuestUser(false));
+        } else if (guestUserValue === 'true') {
+          dispatch(setGuestUser(true));
+          dispatch(setLoggedIn(false));
+        } else {
+          dispatch(setLoggedIn(false));
+          dispatch(setGuestUser(false));
+        }
+      } catch (error) {
+        console.log('❌ Initialization error:', error);
+        dispatch(setLoggedIn(false));
+        dispatch(setGuestUser(false));
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initializeApp();
+  }, [dispatch]);
+
+  useEffect(() => {
+    console.log('🔄 Auth State Changed:');
+    console.log('   - loggedIn:', loggedIn);
+    console.log('   - isGuestUser:', isGuestUser);
+  }, [loggedIn, isGuestUser]);
 
   if (loading) {
     return <SplashScreen />;
   }
 
+  console.log('🎯 Rendering Navigator:');
+  console.log('   - loggedIn:', loggedIn);
+  console.log('   - isGuestUser:', isGuestUser);
+
+  const getNavigatorKey = () => {
+    if (loggedIn) return 'logged-in';
+    if (isGuestUser) return 'guest';
+    return 'auth';
+  };
+
   return (
-    <NavigationContainer>
-      {loggedIn ? <AppNavigator /> : <AuthNavigator />}
-    </NavigationContainer>
+    <>
+      <NavigationContainer
+        ref={navigationRef}
+        key={getNavigatorKey()} 
+        onReady={() => {
+          const route = navigationRef.getCurrentRoute();
+          setCurrentRoute(route?.name);
+          console.log('📍 Initial Route:', route?.name);
+        }}
+        onStateChange={() => {
+          if (navigationRef.isReady()) {
+            const route = navigationRef.getCurrentRoute();
+            setCurrentRoute(route?.name);
+            console.log('📍 Current Route:', route?.name);
+          }
+        }}
+      >
+        {loggedIn || isGuestUser ? <AppNavigator /> : <AuthNavigator />}
+      </NavigationContainer>
+
+      {currentRoute !== 'TrackPayments' && <CustomerSupportButton />}
+    </>
   );
 }
 
 export default function App() {
-  console.log("App Component called ===>");
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView style={styles.container}>
       <StatusBar backgroundColor="#F58502" barStyle="light-content" />
       <Provider store={store}>
         <MainApp />
@@ -66,12 +110,5 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Color.logoBackground },
-  LoginContainer: { flex: 1, backgroundColor: Color.logoBackground },
-  logoView: {
-    height: height / 2,
-    backgroundColor: Color.logoBackground,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+  container: { flex: 1 },
 });

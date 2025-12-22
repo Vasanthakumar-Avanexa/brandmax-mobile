@@ -1,375 +1,434 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   ScrollView,
   StyleSheet,
-  Image,
-  TouchableOpacity,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { Divider } from 'react-native-elements';
 import MIcon from 'react-native-vector-icons/MaterialCommunityIcons';
-import poppins from '../utils/fonts'; // Adjust path if needed
+import fetchData from '../config/fetchData';
+import poppins from '../utils/fonts';
 
 const COLORS = {
-  white: '#ffffff',
-  black: '#000000',
-  red: '#e74c3c',
-  green: '#27ae60',
-  grey: '#95a5a6',
-  lightGrey: '#ecf0f1',
-  border: '#ddd',
   primary: '#D45500',
-  quantityStock: '#2ecc71',
-  orderProductColor: '#D45500',
+  green: '#27ae60',
+  red: '#e74c3c',
+  orange: '#F39C12',
+  blue: '#3498DB',
+  gray: '#95a5a6',
 };
 
-const FONT = {
-  small: 14,
-  medium: 15,
-  large: 16,
-  header: 18,
-  title: 20,
-};
-
-// Reusable Status Icon + Text
-const StatusBadge = ({ status, history }) => {
-  const getIcon = () => {
-    if (status === 'In Progress') return 'progress-check';
-    if (status === 'Cancelled') return 'cancel';
-    return 'checkbox-marked-circle-outline';
+const StatusBadge = ({ status }) => {
+  const getStatus = () => {
+    switch (status?.toLowerCase()) {
+      case 'pending':
+        return { text: 'Pending', color: COLORS.orange, icon: 'clock-outline' };
+      case 'confirmed':
+      case 'placed':
+        return { text: 'Confirmed', color: '#007BFF', icon: 'check-circle-outline' };
+      case 'shipped':
+        return { text: 'Shipped', color: COLORS.blue, icon: 'truck-fast' };
+      case 'in progress':
+        return { text: 'In Progress', color: COLORS.orange, icon: 'progress-clock' };
+      case 'delivered':
+        return { text: 'Delivered', color: COLORS.green, icon: 'check-circle' };
+      case 'cancelled':
+        return { text: 'Cancelled', color: COLORS.red, icon: 'cancel' };
+      default:
+        return { text: status || 'Unknown', color: COLORS.gray, icon: 'help-circle-outline' };
+    }
   };
 
-  const getColor = () => {
-    if (status === 'In Progress') return COLORS.green;
-    if (status === 'Cancelled') return COLORS.red;
-    return COLORS.quantityStock;
-  };
+  const { text, color, icon } = getStatus();
 
   return (
-    <View style={styles.statusView}>
-      <MIcon name={getIcon()} size={22} color={getColor()} />
-      {history.map((h, i) => (
-        <Text key={i} style={styles.statusName}>
-          {h.name}
-        </Text>
-      ))}
+    <View style={styles.statusContainer}>
+      <MIcon name={icon} size={26} color={color} />
+      <Text style={[styles.statusText, { color }]}>{text}</Text>
     </View>
   );
 };
 
-// Size Tag Component
-const SizeTag = ({ size, quantity }) => (
-  <View style={styles.sizeTag}>
-    <Text style={styles.sizeName}>{size}</Text>
-    <Text style={styles.sizeQty}>/ {quantity}</Text>
-  </View>
-);
-
-// Product Item
-const ProductItem = ({ product }) => {
-  const { product_name, total_quantity, product_size } = product;
+const ProductItem = ({ item }) => {
+  const { product, size, quantity, price } = item;
 
   return (
-    <View style={styles.itemSingle}>
-      <View style={styles.itemHeader}>
-        <Text style={styles.productName} numberOfLines={2}>
-          {product_name}
+    <View style={styles.productCard}>
+      <Text style={styles.productName}>
+        {product?.product_name?.trim() || 'Product Name Missing'}
+      </Text>
+
+      {product?.article && (
+        <Text style={styles.article}>
+          {product.article.name} - Code: {product.article.code}
         </Text>
-        <Text style={styles.quantityLabel}>
-          Quantity:{' '}
-          <Text style={styles.quantityValue}>{total_quantity}</Text>
-        </Text>
+      )}
+
+      <Text style={styles.color}>
+        Color: {product?.colour?.color || 'N/A'}
+      </Text>
+
+      <View style={styles.detailsRow}>
+        <Text style={styles.detailLabel}>Size</Text>
+        <Text style={styles.detailValue}>{size?.size || '—'}</Text>
       </View>
 
-      <Divider style={styles.itemDivider} />
+      <View style={styles.detailsRow}>
+        <Text style={styles.detailLabel}>Quantity</Text>
+        <Text style={styles.detailValue}>{quantity || 0}</Text>
+      </View>
 
-      <View style={styles.sizeTagsContainer}>
-        {product_size?.map((s, i) => (
-          <SizeTag key={i} size={s.size_name} quantity={s.quantity} />
+      <View style={styles.detailsRow}>
+        <Text style={styles.detailLabel}>Unit Price</Text>
+        <Text style={styles.priceText}>₹{parseFloat(price || 0).toFixed(2)}</Text>
+      </View>
+
+      <Divider style={styles.divider} />
+
+      <View style={styles.totalRow}>
+        <Text style={styles.totalLabel}>Item Total</Text>
+        <Text style={styles.totalPrice}>
+          ₹{((price || 0) * (quantity || 0)).toLocaleString('en-IN')}
+        </Text>
+      </View>
+    </View>
+  );
+};
+
+const OrderSummaryScreen = ({ route, navigation }) => {
+  const { orderId } = route.params || {};
+  const [order, setOrder] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (orderId) {
+      fetchOrderDetails();
+    } else {
+      Alert.alert('Error', 'No order ID provided');
+      navigation.goBack();
+    }
+  }, [orderId]);
+
+  const fetchOrderDetails = async () => {
+    try {
+      setLoading(true);
+      const response = await fetchData.getOrderDetails(orderId);
+
+      if (response?.success && response?.data && response.data.length > 0) {
+        setOrder(response.data[0]);
+      } else {
+        Alert.alert('Not Found', 'This order does not exist');
+        navigation.goBack();
+      }
+    } catch (error) {
+      console.error('Fetch error:', error);
+      Alert.alert('Error', 'Failed to load order details');
+      navigation.goBack();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatDateTime = (dateString) => {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return 'Invalid Date';
+    return date.toLocaleString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+        <Text style={styles.loadingText}>Loading order details...</Text>
+      </View>
+    );
+  }
+
+  if (!order) {
+    return (
+      <View style={styles.center}>
+        <MIcon name="alert-circle-outline" size={80} color="#ccc" />
+        <Text style={styles.loadingText}>Order not found</Text>
+      </View>
+    );
+  }
+
+  const totalItems = order.items.reduce((sum, item) => sum + item.quantity, 0);
+
+  return (
+    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      <View style={styles.headerCard}>
+        <View style={styles.row}>
+          <Text style={styles.label}>Order ID</Text>
+          <Text style={styles.orderId}>#{order.id}</Text>
+        </View>
+
+        <View style={styles.row}>
+          <Text style={styles.label}>Order Date</Text>
+          <Text style={styles.value}>{formatDateTime(order.createdAt)}</Text>
+        </View>
+
+        <View style={styles.row}>
+          <Text style={styles.label}>Status</Text>
+          <StatusBadge status={order.order_status} />
+        </View>
+
+        <View style={styles.row}>
+          <Text style={styles.label}>Payment Method</Text>
+          <Text style={styles.value}>
+            {(order.payment_method || 'Cash on Delivery').toUpperCase()}
+          </Text>
+        </View>
+
+        <View style={styles.row}>
+          <Text style={styles.label}>Total Amount</Text>
+          <Text style={styles.totalAmount}>
+            ₹{parseFloat(order.total_amount).toLocaleString('en-IN')}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.sectionCard}>
+        <Text style={styles.sectionTitle}>
+          Order Items ({totalItems} {totalItems === 1 ? 'item' : 'items'})
+        </Text>
+        <Divider style={styles.divider} />
+
+        {order.items.map((item) => (
+          <ProductItem key={item.id} item={item} />
         ))}
       </View>
-    </View>
+
+      <View style={styles.summaryCard}>
+        <Text style={styles.summaryTitle}>Order Summary</Text>
+
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryLabel}>Total Items</Text>
+          <Text style={styles.summaryValue}>{totalItems} pcs</Text>
+        </View>
+
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryLabel}>Subtotal</Text>
+          <Text style={styles.summaryValue}>
+            ₹{parseFloat(order.total_amount).toLocaleString('en-IN')}
+          </Text>
+        </View>
+
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryLabel}>Tax & Charges</Text>
+          <Text style={styles.summaryValue}>₹0</Text>
+        </View>
+
+        <Divider style={styles.divider} />
+
+        <View style={styles.summaryRow}>
+          <Text style={styles.grandTotalLabel}>Grand Total</Text>
+          <Text style={styles.grandTotal}>
+            ₹{parseFloat(order.total_amount).toLocaleString('en-IN')}
+          </Text>
+        </View>
+      </View>
+
+      <View style={{ height: 40 }} />
+    </ScrollView>
   );
 };
 
-const OrderSummaryScreen = ({ route }) => {
-  // Use route.params or fallback to dummy data
-  const order = route?.params?.item || DUMMY_ORDER;
-
-  const {
-    order_id,
-    date,
-    total,
-    name: status,
-    history,
-    customer_name,
-    phone,
-    address,
-    city,
-    state,
-    pincode,
-    products,
-    payment_method,
-  } = order;
-
-  return (
-    <View style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Order Header Card */}
-        <View style={styles.headerCard}>
-          <View style={styles.headerRow}>
-            <Text style={styles.label}>Order ID:</Text>
-            <Text style={styles.orderId}>#{order_id}</Text>
-          </View>
-          <View style={styles.headerRow}>
-            <Text style={styles.label}>Date:</Text>
-            <Text style={styles.date}>{date}</Text>
-          </View>
-          <View style={styles.headerRow}>
-            <Text style={styles.label}>Total:</Text>
-            <Text style={styles.total}>₹{total}</Text>
-          </View>
-          <View style={styles.headerRow}>
-            <Text style={styles.label}>Status:</Text>
-            <StatusBadge status={status} history={history} />
-          </View>
-        </View>
-
-        {/* Billing Info */}
-        <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Billing Information</Text>
-          <Divider style={styles.divider} />
-          <View style={styles.billingDetails}>
-            <Text style={styles.billingText}>{customer_name}</Text>
-            <Text style={styles.billingText}>{phone}</Text>
-            <Text style={styles.billingText} numberOfLines={2}>
-              {address}
-            </Text>
-            <Text style={styles.billingText}>{city}</Text>
-            <Text style={styles.billingText}>
-              {state} - {pincode}
-            </Text>
-          </View>
-        </View>
-
-        {/* Item Details */}
-        <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Item Details</Text>
-          <Divider style={styles.divider} />
-          {products.map((p, i) => (
-            <ProductItem key={i} product={p} />
-          ))}
-        </View>
-
-        {/* Payment */}
-        <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Payment Option</Text>
-          <Divider style={styles.divider} />
-          <Text style={styles.paymentText}>{payment_method}</Text>
-        </View>
-      </ScrollView>
-    </View>
-  );
-};
-
-export default OrderSummaryScreen;
-
-// Dummy Data (for testing without route.params)
-const DUMMY_ORDER = {
-  order_id: 'ORD123456',
-  date: '12 Apr 2025',
-  total: 2499,
-  name: 'In Progress',
-  history: [{ name: 'In Progress' }],
-  customer_name: 'John Doe',
-  phone: '+91 98765 43210',
-  address: '123, MG Road, Near City Center',
-  city: 'Mumbai',
-  state: 'Maharashtra',
-  pincode: '400001',
-  payment_method: 'Cash on Delivery',
-  products: [
-    {
-      product_name: 'Premium Leather Shoes - Black',
-      total_quantity: 5,
-      product_size: [
-        { size_name: '7', quantity: 2 },
-        { size_name: '8', quantity: 1 },
-        { size_name: '9', quantity: 2 },
-      ],
-    },
-    {
-      product_name: 'Casual Sneakers - White',
-      total_quantity: 3,
-      product_size: [
-        { size_name: '8', quantity: 1 },
-        { size_name: '9', quantity: 2 },
-      ],
-    },
-  ],
-};
-
-// Local Styles
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.white,
-    padding: 12,
+    backgroundColor: '#f9f9f9',
+  },
+  center: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f9f9f9',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#888',
+    fontFamily: poppins.medium,
   },
   headerCard: {
-    backgroundColor: COLORS.white,
-    padding: 15,
-    borderRadius: 12,
-    marginVertical: 10,
-    marginHorizontal: 5,
-    elevation: 4,
-    shadowColor: COLORS.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.23,
-    shadowRadius: 2.62,
+    backgroundColor: '#fff',
+    margin: 16,
+    padding: 20,
+    borderRadius: 16,
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
   },
-  headerRow: {
+  row: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    marginVertical: 6,
+    marginVertical: 10,
   },
   label: {
-    flex: 1,
-    fontSize: FONT.medium,
+    fontSize: 16,
+    color: '#666',
+    fontFamily: poppins.medium,
+  },
+  value: {
+    fontSize: 17,
+    color: '#333',
     fontFamily: poppins.semiBold,
-    color: COLORS.black,
   },
   orderId: {
-    color: COLORS.orderProductColor,
-    fontSize: FONT.header,
-    fontFamily: poppins.medium,
+    fontSize: 20,
+    color: COLORS.primary,
+    fontFamily: poppins.bold,
   },
-  date: {
-    color: COLORS.black,
-    fontSize: FONT.medium,
+  totalAmount: {
+    fontSize: 24,
+    color: COLORS.primary,
+    fontFamily: poppins.bold,
   },
-  total: {
-    color: COLORS.red,
-    fontSize: FONT.header,
-    fontFamily: poppins.medium,
-  },
-  statusView: {
+  statusContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'flex-end',
   },
-  statusName: {
-    marginLeft: 6,
-    color: COLORS.black,
-    fontSize: FONT.medium,
+  statusText: {
+    marginLeft: 10,
+    fontSize: 18,
     fontFamily: poppins.semiBold,
   },
   sectionCard: {
-    backgroundColor: COLORS.white,
-    padding: 15,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: COLORS.lightGrey,
-    marginVertical: 10,
+    backgroundColor: '#fff',
+    marginHorizontal: 16,
+    marginTop: 10,
+    borderRadius: 16,
+    padding: 18,
+    elevation: 4,
   },
   sectionTitle: {
-    fontSize: FONT.header,
+    fontSize: 20,
+    color: '#333',
     fontFamily: poppins.semiBold,
-    color: COLORS.black,
-    marginBottom: 8,
+    marginBottom: 12,
   },
   divider: {
-    height: 1,
-    backgroundColor: COLORS.border,
-    marginVertical: 8,
+    backgroundColor: '#eee',
+    marginVertical: 12,
   },
-  billingDetails: {
-    marginTop: 8,
-  },
-  billingText: {
-    fontSize: FONT.large,
-    fontFamily: poppins.medium,
-    color: COLORS.black,
-    marginVertical: 4,
-  },
-  itemSingle: {
-    borderWidth: 1,
-    borderColor: COLORS.lightGrey,
-    borderRadius: 8,
-    marginVertical: 8,
-    padding: 10,
-  },
-  itemHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
+  productCard: {
+    backgroundColor: '#f5f5f5',
+    padding: 18,
+    borderRadius: 14,
+    marginBottom: 14,
   },
   productName: {
-    flex: 1,
-    fontSize: FONT.large,
+    fontSize: 18,
+    color: '#000',
     fontFamily: poppins.semiBold,
-    color: COLORS.black,
-    marginRight: 10,
   },
-  quantityLabel: {
-    backgroundColor: COLORS.white,
-    borderWidth: 1,
-    borderColor: COLORS.lightGrey,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
-    fontSize: FONT.medium,
-    fontFamily: poppins.medium,
-    color: COLORS.black,
-  },
-  quantityValue: {
-    color: COLORS.red,
-    fontFamily: poppins.medium,
-  },
-  itemDivider: {
-    height: 1,
-    backgroundColor: COLORS.border,
-    marginVertical: 10,
-  },
-  sizeTagsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'flex-start',
-    gap: 8,
-  },
-  sizeTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.grey,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  sizeName: {
+  article: {
     fontSize: 14,
-    fontFamily: poppins.medium,
-    color: COLORS.black,
-    width: 22,
-    height: 22,
-    textAlign: 'center',
-    textAlignVertical: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.black,
-    borderRadius: 11,
+    color: '#777',
+    marginTop: 6,
+    fontFamily: poppins.regular,
   },
-  sizeQty: {
-    fontSize: FONT.small,
-    fontFamily: poppins.medium,
-    color: COLORS.black,
-    marginLeft: 6,
+  color: {
+    fontSize: 15,
+    color: COLORS.primary,
+    marginTop: 8,
+    fontFamily: poppins.semiBold,
   },
-  paymentText: {
-    fontSize: FONT.large,
+  detailsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 12,
+  },
+  detailLabel: {
+    fontSize: 15,
+    color: '#666',
     fontFamily: poppins.medium,
-    color: COLORS.black,
+  },
+  detailValue: {
+    fontSize: 16,
+    color: '#333',
+    fontFamily: poppins.semiBold,
+  },
+  priceText: {
+    fontSize: 17,
+    color: COLORS.red,
+    fontFamily: poppins.semiBold,
+  },
+  totalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: '#ddd',
+    marginTop: 10,
+  },
+  totalLabel: {
+    fontSize: 17,
+    color: '#333',
+    fontFamily: poppins.semiBold,
+  },
+  totalPrice: {
+    fontSize: 19,
+    color: COLORS.red,
+    fontFamily: poppins.bold,
+  },
+  summaryCard: {
+    backgroundColor: '#fff',
+    margin: 16,
+    padding: 20,
+    borderRadius: 16,
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+  },
+  summaryTitle: {
+    fontSize: 20,
+    color: '#333',
     textAlign: 'center',
-    marginVertical: 10,
+    marginBottom: 16,
+    fontFamily: poppins.semiBold,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginVertical: 8,
+  },
+  summaryLabel: {
+    fontSize: 16,
+    color: '#666',
+    fontFamily: poppins.medium,
+  },
+  summaryValue: {
+    fontSize: 17,
+    color: '#333',
+    fontFamily: poppins.semiBold,
+  },
+  grandTotalLabel: {
+    fontSize: 19,
+    color: '#000',
+    fontFamily: poppins.bold,
+  },
+  grandTotal: {
+    fontSize: 24,
+    color: COLORS.primary,
+    fontFamily: poppins.bold,
   },
 });
+
+export default OrderSummaryScreen;
