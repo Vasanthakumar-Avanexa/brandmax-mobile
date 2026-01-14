@@ -6,11 +6,14 @@ import {
   StyleSheet,
   ActivityIndicator,
   Alert,
+  Dimensions,
 } from 'react-native';
 import { Divider } from 'react-native-elements';
 import MIcon from 'react-native-vector-icons/MaterialCommunityIcons';
 import fetchData from '../config/fetchData';
-import poppins from '../utils/fonts';
+import Nunito from '../utils/fonts';
+
+const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const COLORS = {
   primary: '#D45500',
@@ -46,7 +49,7 @@ const StatusBadge = ({ status }) => {
 
   return (
     <View style={styles.statusContainer}>
-      <MIcon name={icon} size={26} color={color} />
+      <MIcon name={icon} size={SCREEN_HEIGHT * 0.024} color={color} />
       <Text style={[styles.statusText, { color }]}>{text}</Text>
     </View>
   );
@@ -102,6 +105,7 @@ const OrderSummaryScreen = ({ route, navigation }) => {
   const { orderId } = route.params || {};
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [tax, setTax] = useState(0);
 
   useEffect(() => {
     if (orderId) {
@@ -116,9 +120,12 @@ const OrderSummaryScreen = ({ route, navigation }) => {
     try {
       setLoading(true);
       const response = await fetchData.getOrderDetails(orderId);
+      console.log("====response0000000-->",response);
+      
 
       if (response?.success && response?.data && response.data.length > 0) {
-        setOrder(response.data[0]);
+        setTax(response?.tax || 0);
+        setOrder(response?.data[0]);
       } else {
         Alert.alert('Not Found', 'This order does not exist');
         navigation.goBack();
@@ -145,6 +152,24 @@ const OrderSummaryScreen = ({ route, navigation }) => {
     });
   };
 
+  // Calculate subtotal (sum of all item totals)
+  const calculateSubtotal = () => {
+    if (!order || !order.items) return 0;
+    return order.items.reduce((sum, item) => {
+      return sum + (item.price || 0) * (item.quantity || 0);
+    }, 0);
+  };
+
+  // Calculate tax amount
+  const calculateTaxAmount = (subtotal) => {
+    return (subtotal * (tax / 100));
+  };
+
+  // Calculate grand total
+  const calculateGrandTotal = (subtotal, taxAmount) => {
+    return subtotal + taxAmount;
+  };
+
   if (loading) {
     return (
       <View style={styles.center}>
@@ -157,13 +182,16 @@ const OrderSummaryScreen = ({ route, navigation }) => {
   if (!order) {
     return (
       <View style={styles.center}>
-        <MIcon name="alert-circle-outline" size={80} color="#ccc" />
+        <MIcon name="alert-circle-outline" size={SCREEN_HEIGHT * 0.08} color="#ccc" />
         <Text style={styles.loadingText}>Order not found</Text>
       </View>
     );
   }
 
   const totalItems = order.items.reduce((sum, item) => sum + item.quantity, 0);
+  const subtotal = calculateSubtotal();
+  const taxAmount = calculateTaxAmount(subtotal);
+  const grandTotal = calculateGrandTotal(subtotal, taxAmount);
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
@@ -186,14 +214,14 @@ const OrderSummaryScreen = ({ route, navigation }) => {
         <View style={styles.row}>
           <Text style={styles.label}>Payment Method</Text>
           <Text style={styles.value}>
-            {(order.payment_method || 'Cash on Delivery').toUpperCase()}
+            {order?.order_pay_type?.toUpperCase() || 'CASH ON DELIVERY'}
           </Text>
         </View>
 
         <View style={styles.row}>
           <Text style={styles.label}>Total Amount</Text>
           <Text style={styles.totalAmount}>
-            ₹{parseFloat(order.total_amount).toLocaleString('en-IN')}
+            ₹{grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </Text>
         </View>
       </View>
@@ -220,13 +248,15 @@ const OrderSummaryScreen = ({ route, navigation }) => {
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>Subtotal</Text>
           <Text style={styles.summaryValue}>
-            ₹{parseFloat(order.total_amount).toLocaleString('en-IN')}
+            ₹{subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </Text>
         </View>
 
         <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Tax & Charges</Text>
-          <Text style={styles.summaryValue}>₹0</Text>
+          <Text style={styles.summaryLabel}>Tax & Charges ({tax}%)</Text>
+          <Text style={styles.summaryValue}>
+            ₹{taxAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </Text>
         </View>
 
         <Divider style={styles.divider} />
@@ -234,12 +264,12 @@ const OrderSummaryScreen = ({ route, navigation }) => {
         <View style={styles.summaryRow}>
           <Text style={styles.grandTotalLabel}>Grand Total</Text>
           <Text style={styles.grandTotal}>
-            ₹{parseFloat(order.total_amount).toLocaleString('en-IN')}
+            ₹{grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </Text>
         </View>
       </View>
 
-      <View style={{ height: 40 }} />
+      <View style={{ height: SCREEN_HEIGHT * 0.05 }} />
     </ScrollView>
   );
 };
@@ -256,15 +286,18 @@ const styles = StyleSheet.create({
     backgroundColor: '#f9f9f9',
   },
   loadingText: {
-    marginTop: 16,
-    fontSize: 16,
+    marginTop: SCREEN_HEIGHT * 0.02,
+    fontSize: SCREEN_HEIGHT * 0.016,
     color: '#888',
-    fontFamily: poppins.medium,
+    fontFamily: Nunito.medium,
   },
   headerCard: {
     backgroundColor: '#fff',
-    margin: 16,
-    padding: 20,
+    marginHorizontal: SCREEN_WIDTH * 0.04,
+    marginTop: SCREEN_HEIGHT * 0.02,
+    marginBottom: SCREEN_HEIGHT * 0.01,
+    paddingHorizontal: SCREEN_WIDTH * 0.04,
+    paddingVertical: SCREEN_HEIGHT * 0.015,
     borderRadius: 16,
     elevation: 6,
     shadowColor: '#000',
@@ -276,120 +309,124 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginVertical: 10,
+    marginVertical: SCREEN_HEIGHT * 0.008,
   },
   label: {
-    fontSize: 16,
+    fontSize: SCREEN_HEIGHT * 0.016,
     color: '#666',
-    fontFamily: poppins.medium,
+    fontFamily: Nunito.medium,
   },
   value: {
-    fontSize: 17,
+    fontSize: SCREEN_HEIGHT * 0.017,
     color: '#333',
-    fontFamily: poppins.semiBold,
+    fontFamily: Nunito.semiBold,
+    maxWidth: SCREEN_WIDTH * 0.5,
+    textAlign: 'right',
   },
   orderId: {
-    fontSize: 20,
+    fontSize: SCREEN_HEIGHT * 0.020,
     color: COLORS.primary,
-    fontFamily: poppins.bold,
+    fontFamily: Nunito.bold,
   },
   totalAmount: {
-    fontSize: 24,
+    fontSize: SCREEN_HEIGHT * 0.024,
     color: COLORS.primary,
-    fontFamily: poppins.bold,
+    fontFamily: Nunito.bold,
   },
   statusContainer: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   statusText: {
-    marginLeft: 10,
-    fontSize: 18,
-    fontFamily: poppins.semiBold,
+    marginLeft: SCREEN_WIDTH * 0.025,
+    fontSize: SCREEN_HEIGHT * 0.017,
+    fontFamily: Nunito.semiBold,
   },
   sectionCard: {
     backgroundColor: '#fff',
-    marginHorizontal: 16,
-    marginTop: 10,
+    marginHorizontal: SCREEN_WIDTH * 0.04,
+    marginVertical: SCREEN_HEIGHT * 0.01,
     borderRadius: 16,
-    padding: 18,
+    paddingHorizontal: SCREEN_WIDTH * 0.04,
+    paddingVertical: SCREEN_HEIGHT * 0.02,
     elevation: 4,
   },
   sectionTitle: {
-    fontSize: 20,
+    fontSize: SCREEN_HEIGHT * 0.020,
     color: '#333',
-    fontFamily: poppins.semiBold,
-    marginBottom: 12,
+    fontFamily: Nunito.semiBold,
+    marginBottom: SCREEN_HEIGHT * 0.01,
   },
   divider: {
     backgroundColor: '#eee',
-    marginVertical: 12,
+    marginVertical: SCREEN_HEIGHT * 0.001,
   },
   productCard: {
     backgroundColor: '#f5f5f5',
-    padding: 18,
+    paddingHorizontal: SCREEN_WIDTH * 0.04,
+    paddingVertical: SCREEN_HEIGHT * 0.01,
     borderRadius: 14,
-    marginBottom: 14,
+    marginTop: SCREEN_HEIGHT * 0.012,
   },
   productName: {
-    fontSize: 18,
+    fontSize: SCREEN_HEIGHT * 0.018,
     color: '#000',
-    fontFamily: poppins.semiBold,
+    fontFamily: Nunito.semiBold,
   },
   article: {
-    fontSize: 14,
+    fontSize: SCREEN_HEIGHT * 0.014,
     color: '#777',
-    marginTop: 6,
-    fontFamily: poppins.regular,
+    marginTop: SCREEN_HEIGHT * 0.006,
+    fontFamily: Nunito.regular,
   },
   color: {
-    fontSize: 15,
+    fontSize: SCREEN_HEIGHT * 0.015,
     color: COLORS.primary,
-    marginTop: 8,
-    fontFamily: poppins.semiBold,
+    marginTop: SCREEN_HEIGHT * 0.008,
+    fontFamily: Nunito.semiBold,
   },
   detailsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 12,
+    marginTop: SCREEN_HEIGHT * 0.012,
   },
   detailLabel: {
-    fontSize: 15,
+    fontSize: SCREEN_HEIGHT * 0.015,
     color: '#666',
-    fontFamily: poppins.medium,
+    fontFamily: Nunito.medium,
   },
   detailValue: {
-    fontSize: 16,
+    fontSize: SCREEN_HEIGHT * 0.016,
     color: '#333',
-    fontFamily: poppins.semiBold,
+    fontFamily: Nunito.semiBold,
   },
   priceText: {
-    fontSize: 17,
+    fontSize: SCREEN_HEIGHT * 0.017,
     color: COLORS.red,
-    fontFamily: poppins.semiBold,
+    fontFamily: Nunito.semiBold,
   },
   totalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingTop: 14,
-    borderTopWidth: 1,
-    borderTopColor: '#ddd',
-    marginTop: 10,
+    paddingTop: SCREEN_HEIGHT * 0.001,
+    marginTop: SCREEN_HEIGHT * 0.012,
   },
   totalLabel: {
-    fontSize: 17,
+    fontSize: SCREEN_HEIGHT * 0.017,
     color: '#333',
-    fontFamily: poppins.semiBold,
+    fontFamily: Nunito.semiBold,
   },
   totalPrice: {
-    fontSize: 19,
+    fontSize: SCREEN_HEIGHT * 0.019,
     color: COLORS.red,
-    fontFamily: poppins.bold,
+    fontFamily: Nunito.bold,
   },
   summaryCard: {
     backgroundColor: '#fff',
-    margin: 16,
-    padding: 20,
+    marginHorizontal: SCREEN_WIDTH * 0.04,
+    marginVertical: SCREEN_HEIGHT * 0.01,
+    paddingHorizontal: SCREEN_WIDTH * 0.05,
+    paddingVertical: SCREEN_HEIGHT * 0.02,
     borderRadius: 16,
     elevation: 6,
     shadowColor: '#000',
@@ -398,36 +435,36 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
   },
   summaryTitle: {
-    fontSize: 20,
+    fontSize: SCREEN_HEIGHT * 0.020,
     color: '#333',
     textAlign: 'center',
-    marginBottom: 16,
-    fontFamily: poppins.semiBold,
+    marginBottom: SCREEN_HEIGHT * 0.02,
+    fontFamily: Nunito.semiBold,
   },
   summaryRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginVertical: 8,
+    marginVertical: SCREEN_HEIGHT * 0.008,
   },
   summaryLabel: {
-    fontSize: 16,
+    fontSize: SCREEN_HEIGHT * 0.016,
     color: '#666',
-    fontFamily: poppins.medium,
+    fontFamily: Nunito.medium,
   },
   summaryValue: {
-    fontSize: 17,
+    fontSize: SCREEN_HEIGHT * 0.017,
     color: '#333',
-    fontFamily: poppins.semiBold,
+    fontFamily: Nunito.semiBold,
   },
   grandTotalLabel: {
-    fontSize: 19,
+    fontSize: SCREEN_HEIGHT * 0.019,
     color: '#000',
-    fontFamily: poppins.bold,
+    fontFamily: Nunito.bold,
   },
   grandTotal: {
-    fontSize: 24,
+    fontSize: SCREEN_HEIGHT * 0.024,
     color: COLORS.primary,
-    fontFamily: poppins.bold,
+    fontFamily: Nunito.bold,
   },
 });
 

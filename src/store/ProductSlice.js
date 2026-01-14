@@ -5,13 +5,14 @@ const initialState = {
   page: 1,
   hasMore: true,
   filterLoadings: false,
+  cartCount: 0,
 };
 
 const productSlice = createSlice({
   name: "product",
   initialState,
   reducers: {
-      setProductsList: (state, action) => {
+    setProductsList: (state, action) => {
       const newProducts = Array.isArray(action.payload) ? action.payload : [];
       state.products = [...state.products, ...newProducts];
     },
@@ -28,7 +29,19 @@ const productSlice = createSlice({
       state.products = [];
       state.page = 1;
       state.hasMore = true;
-    }
+    },
+    setCartCount(state, action) {
+      state.cartCount = action.payload;
+    },
+    incrementCartCount(state) {
+      state.cartCount += 1;
+    },
+    decrementCartCount(state) {
+      state.cartCount = Math.max(0, state.cartCount - 1);
+    },
+    resetCartCount(state) {
+      state.cartCount = 0;
+    },
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
@@ -36,5 +49,16 @@ const productSlice = createSlice({
     }),
 });
 
-export const { setProductsList, incrementPage, setHasMore, resetProducts } = productSlice.actions;
+export const { 
+  setProductsList, 
+  incrementPage, 
+  setHasMore, 
+  resetProducts,
+  setFilterLoadings,
+  setCartCount,
+  incrementCartCount,
+  decrementCartCount,
+  resetCartCount,
+} = productSlice.actions;
+
 export default productSlice.reducer;

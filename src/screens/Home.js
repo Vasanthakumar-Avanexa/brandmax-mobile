@@ -8,21 +8,57 @@ import {
   Dimensions,
   FlatList,
   ActivityIndicator,
-  ScrollView,
+  Modal,
+  BackHandler,
   ToastAndroid,
+  Pressable,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSelector, useDispatch } from 'react-redux';
-import { setProductsList, resetProducts } from '../store/ProductSlice';
+import { setProductsList, resetProducts, setCartCount } from '../store/ProductSlice';
 import fetchData from '../config/fetchData';
 import { Dropdown } from 'react-native-element-dropdown';
-import poppins from '../utils/fonts';
+import Nunito from '../utils/fonts';
 
-const { width } = Dimensions.get('window');
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-const CATEGORIES = ['ALL', 'BOYS', 'LADIES', 'GENTS', 'KIDS'];
+const CATEGORIES = [
+  { display: 'All', value: 'ALL' },
+  { display: 'Boys', value: 'BOYS' },
+  { display: 'Ladies', value: 'LADIES' },
+  { display: 'Gents', value: 'GENTS' },
+  { display: 'Kids', value: 'KIDS' }
+];
+
 const ITEMS_PER_PAGE = 10;
+
+const getColorCode = (colorName) => {
+  if (!colorName) return '#FFFFFF';
+  
+  const colorMap = {
+    'BLACK': '#000000',
+    'WHITE': '#FFFFFF',
+    'RED': '#FF0000',
+    'BLUE': '#0000FF',
+    'GREEN': '#008000',
+    'YELLOW': '#FFFF00',
+    'GREY': '#808080',
+    'GRAY': '#808080',
+    'BROWN': '#8B4513',
+    'PINK': '#FFC0CB',
+    'PURPLE': '#800080',
+    'ORANGE': '#FFA500',
+    'NAVY': '#000080',
+    'BEIGE': '#F5F5DC',
+    'CREAM': '#FFFDD0',
+    'MAROON': '#800000',
+    'BLKWHT': '#000000',
+  };
+  
+  const normalizedColor = colorName.toUpperCase().trim();
+  return colorMap[normalizedColor] || '#FFFFFF';
+};
 
 const CategoryChip = React.memo(({ title, onPress, isActive }) => (
   <TouchableOpacity 
@@ -45,7 +81,9 @@ const ProductCard = React.memo(({ product, isGuestUser }) => {
   const navigation = useNavigation();
   const [selectedSize, setSelectedSize] = useState(null);
   
-  const sizes = product?.productSizes || [];
+  const isOutOfStock = product?.totalStock === 0;
+  
+  const sizes = (product?.productSizes || []).filter(sizeItem => sizeItem?.quantity > 0);
   const hasSizes = sizes.length > 0;
   const hasMultipleSizes = sizes.length > 1;
 
@@ -58,13 +96,20 @@ const ProductCard = React.memo(({ product, isGuestUser }) => {
     ToastAndroid.show('Login First', ToastAndroid.SHORT);
   };
 
+  const showOutOfStockToast = () => {
+    ToastAndroid.show('This item is currently out of stock', ToastAndroid.SHORT);
+  };
+
   const handlePress = () => {
+    if (isOutOfStock) {
+      showOutOfStockToast();
+      return;
+    }
+
     if (isGuestUser) {
       showLoginToast();
       return;
     }
-
-    console.log('Navigating to SingleProperty with product ID:', product._id || product.id);
 
     navigation.navigate('SingleProperty', { 
       productId: product._id || product.id  
@@ -76,24 +121,33 @@ const ProductCard = React.memo(({ product, isGuestUser }) => {
       showLoginToast();
       return;
     }
+    if (isOutOfStock) {
+      showOutOfStockToast();
+      return;
+    }
     setSelectedSize(item.value);
   };
 
   const handleDropdownOpen = () => {
     if (isGuestUser) {
       showLoginToast();
+    } else if (isOutOfStock) {
+      showOutOfStockToast();
     }
   };
 
   useEffect(() => {
-    if (hasSizes && !selectedSize) {
+    if (hasSizes && !selectedSize && !isOutOfStock) {
       setSelectedSize(dropdownData[0]?.value);
     }
-  }, []);
+  }, [hasSizes, selectedSize, dropdownData, isOutOfStock]);
+
+  const colorName = product?.colour?.color || '';
+  const colorCode = getColorCode(colorName);
 
   return (
     <TouchableOpacity
-      style={styles.productCard}
+      style={[styles.productCard, isOutOfStock && styles.productCardOutOfStock]}
       activeOpacity={0.9}
       onPress={handlePress}
     >
@@ -107,18 +161,27 @@ const ProductCard = React.memo(({ product, isGuestUser }) => {
 
           <View style={styles.row}>
             <Text style={styles.label}>Color:</Text>
-            <Text style={styles.value}>{product?.colour?.color}</Text>
+            <View style={styles.colorValueContainer}>
+              <View style={[styles.colorCircle, { backgroundColor: colorCode }]} />
+              <Text style={styles.value}>{colorName || 'N/A'}</Text>
+            </View>
           </View>
 
           <View style={styles.sizeContainer}>
             <Text style={styles.label}>Size:</Text>
             <View style={styles.dropdownWrapper}>
-             { hasMultipleSizes ? (
+             {isOutOfStock ? (
+               <View style={styles.singleSizeContainer}>
+                 <Text style={[styles.value, { color: '#999' }]}>
+                   Size
+                 </Text>
+               </View>
+             ) : hasMultipleSizes ? (
                <Dropdown
                 data={dropdownData}
                 labelField="label"
                 valueField="value"
-                placeholder={hasSizes ? sizes[0]?.size?.size : 'N/A'}
+                placeholder={hasSizes ? sizes[0]?.size?.size : 'Size'}
                 value={selectedSize}
                 onChange={(item) => {
                   if (!isGuestUser) {
@@ -147,10 +210,9 @@ const ProductCard = React.memo(({ product, isGuestUser }) => {
                 )}
               />
              ) : (
-             
-              <View style={{borderWidth: 1, borderColor: '#ddd', padding: 5, borderRadius: 5, backgroundColor: '#F5F5F5', width: width * 0.3, alignItems: 'center', }}>
+              <View style={styles.singleSizeContainer}>
                  <Text style={[styles.value, { color: '#333' }]}>
-                {sizes[0]?.size?.size || 'N/A'}
+                {sizes[0]?.size?.size || 'Size'}
               </Text>
               </View>
              )}
@@ -158,28 +220,34 @@ const ProductCard = React.memo(({ product, isGuestUser }) => {
           </View>
 
           <View style={styles.row}>
-            <Text style={styles.label}>Mrp:</Text>
+            <Text style={styles.label}>MRP:</Text>
             <Text style={[styles.value, styles.price]}>
-              {product?.product_price || 'N/A'}
+               ₹{product?.product_price || '0'} 
             </Text>
           </View>
 
-          <View style={styles.row}>
+         {!isGuestUser &&<View style={styles.row}>
             <Text style={styles.label}>Margin:</Text>
             <Text style={[styles.value, styles.quantity]}>
-              {product?.product_margin || 'N/A'}
+              {product?.product_margin || '0'}%
             </Text>
-          </View>
+          </View> } 
         </View>
-
+{console.log("-------image---->",product?.product_image)
+}
         <View style={styles.imageWrapper}>
           <Image
             source={{
               uri: product?.product_image || 'https://www.gstatic.com/webp/gallery/4.jpg',
             }}
-            style={styles.productImage}
+            style={[styles.productImage, isOutOfStock && styles.productImageOutOfStock]}
             resizeMode="cover"
           />
+          {isOutOfStock && (
+            <View style={styles.outOfStockBadge}>
+              <Text style={styles.outOfStockText}>OUT OF STOCK</Text>
+            </View>
+          )}
         </View>
       </View>
     </TouchableOpacity>
@@ -203,6 +271,7 @@ const Home = () => {
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [isGuestUser, setIsGuestUser] = useState(false);
+  const [exitModalVisible, setExitModalVisible] = useState(false);
 
   const isFetchingRef = useRef(false);
 
@@ -212,13 +281,9 @@ const Home = () => {
         const guestUser = await AsyncStorage.getItem('isGuestUser');
         if (guestUser === 'true') {
           setIsGuestUser(true);
-          console.log('Guest user detected');
         } else {
           const userData = await AsyncStorage.getItem('UserData');
-          if (userData) {
-            console.log('Logged-in user data loaded');
-            setIsGuestUser(false);
-          }
+          setIsGuestUser(!userData);
         }
       } catch (error) {
         console.error('Error loading user data:', error);
@@ -226,6 +291,17 @@ const Home = () => {
     };
     loadUserData();
   }, []);
+
+  const getCount = async () => {
+    try {
+      const response = await fetchData.getCartCount();
+      if (response && response.success) {
+        dispatch(setCartCount(response.count || 0));
+      }
+    } catch (error) {
+      console.error('Error fetching cart count:', error);
+    }
+  };
 
   const fetchProducts = useCallback(async (currentPage, filterCategory = '') => {
     if (isFetchingRef.current) return;
@@ -239,13 +315,11 @@ const Home = () => {
         page: currentPage, 
         limit: ITEMS_PER_PAGE 
       };
-      
-      console.log('📦 Fetching products:', payload);
 
       const response = await fetchData.getProducts(payload);
+      console.log("Data loaded After Every page",response);
+      
       const newProducts = Array.isArray(response?.data) ? response.data : [];
-
-      console.log(`✅ Received ${newProducts.length} products for page ${currentPage}`);
 
       if (newProducts.length > 0) {
         dispatch(setProductsList(newProducts));
@@ -269,33 +343,58 @@ const Home = () => {
     }
   }, [dispatch]);
 
-  useEffect(() => {
-    fetchProducts(1, '');
-  }, []);
+  const handleCategoryPress = useCallback((categoryValue) => {
+    if (selectedCategory === categoryValue) return;
 
-  const handleCategoryPress = useCallback((category) => {
-    if (selectedCategory === category) return;
-
-    console.log('Filtering by category:', category);
-    
-    setSelectedCategory(category);
+    setSelectedCategory(categoryValue);
     setPage(1);
     setHasMore(true);
     setInitialLoading(true);
-    
     dispatch(resetProducts());
     
-    const searchTerm = category === 'ALL' ? '' : category;
+    const searchTerm = categoryValue === 'ALL' ? '' : categoryValue;
     fetchProducts(1, searchTerm);
   }, [selectedCategory, dispatch, fetchProducts]);
 
   const handleLoadMore = useCallback(() => {
     if (!loading && hasMore && !isFetchingRef.current) {
-      console.log(`Loading page ${page}...`);
       const searchTerm = selectedCategory === 'ALL' ? '' : selectedCategory;
       fetchProducts(page, searchTerm);
     }
   }, [loading, hasMore, page, selectedCategory, fetchProducts]);
+
+  useFocusEffect(
+    useCallback(() => {
+      setPage(1);
+      setHasMore(true);
+      setInitialLoading(true);
+      dispatch(resetProducts());
+      
+      getCount();
+      const searchTerm = selectedCategory === 'ALL' ? '' : selectedCategory || '';
+      fetchProducts(1, searchTerm);
+
+      const onBackPress = () => {
+        setExitModalVisible(true);
+        return true; 
+      };
+
+      const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+
+      return () => {
+        subscription.remove();
+      };
+    }, [selectedCategory, dispatch, fetchProducts])
+  );
+
+  const handleExitConfirm = () => {
+    setExitModalVisible(false);
+    BackHandler.exitApp();
+  };
+
+  const handleExitCancel = () => {
+    setExitModalVisible(false);
+  };
 
   const renderFooter = () => {
     if (!loading) return null;
@@ -308,6 +407,11 @@ const Home = () => {
     );
   };
 
+  const getSelectedCategoryDisplay = () => {
+    const category = CATEGORIES.find(cat => cat.value === selectedCategory);
+    return category ? category.display : 'All';
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.categorySection}>
@@ -315,14 +419,14 @@ const Home = () => {
           data={CATEGORIES}
           horizontal
           showsHorizontalScrollIndicator={false}
-          keyExtractor={(item) => item}
+          keyExtractor={(item) => item.value}
           renderItem={({ item }) => (
             <CategoryChip
-              title={item}
-              onPress={handleCategoryPress}
+              title={item.display}
+              onPress={() => handleCategoryPress(item.value)}
               isActive={
-                (item === 'ALL' && !selectedCategory) ||
-                item === selectedCategory
+                (item.value === 'ALL' && !selectedCategory) ||
+                item.value === selectedCategory
               }
             />
           )}
@@ -332,7 +436,7 @@ const Home = () => {
 
       <View style={styles.titleSection}>
         <Text style={styles.sectionTitle}>
-          {selectedCategory ? `${selectedCategory} Products` : 'Featured Products'}
+          {selectedCategory ? `${getSelectedCategoryDisplay()} Products` : 'All Products'}
         </Text>
       </View>
 
@@ -359,6 +463,38 @@ const Home = () => {
           windowSize={10}
         />
       )}
+
+      <Modal
+        transparent={true}
+        visible={exitModalVisible}
+        animationType="fade"
+        onRequestClose={handleExitCancel}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalTitle}>Exit Application?</Text>
+            <Text style={styles.modalMessage}>
+              Are you sure you want to exit the app?
+            </Text>
+
+            <View style={styles.modalButtons}>
+              <Pressable
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={handleExitCancel}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </Pressable>
+
+              <Pressable
+                style={[styles.modalButton, styles.exitButton]}
+                onPress={handleExitConfirm}
+              >
+                <Text style={styles.exitButtonText}>Exit</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -371,20 +507,22 @@ const styles = StyleSheet.create({
     backgroundColor: '#F9F9F9',
   },
   categorySection: {
-    paddingLeft: 15,
-    marginTop: 10,
+    paddingLeft: SCREEN_WIDTH * 0.04,
+    marginTop: SCREEN_HEIGHT * 0.012,
   },
   categoryList: {
-    paddingRight: 15,
+    paddingRight: SCREEN_WIDTH * 0.04,
   },
   categoryChip: {
     backgroundColor: '#fff',
-    paddingHorizontal: 25,
-    paddingVertical: 10,
+    height: SCREEN_HEIGHT * 0.045,
+    width: SCREEN_WIDTH * 0.19,
     borderRadius: 10,
-    marginHorizontal: 5,
+    marginHorizontal: SCREEN_WIDTH * 0.013,
     borderWidth: 1,
     borderColor: '#ddd',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   categoryChipActive: {
     backgroundColor: '#D45500',
@@ -392,76 +530,90 @@ const styles = StyleSheet.create({
   },
   categoryText: {
     color: '#333',
-    fontWeight: '600',
-    fontSize: 15,
-    fontFamily: poppins.semiBold,
+    fontSize: SCREEN_HEIGHT * 0.017,
+    fontFamily: Nunito.semiBold,
   },
   categoryTextActive: {
     color: '#fff',
-    fontFamily: poppins.semiBold,
+    fontFamily: Nunito.semiBold,
   },
   titleSection: {
-    marginTop: 10,
-    paddingLeft: width * 0.06,
-    paddingBottom: 15,
+    paddingVertical: SCREEN_HEIGHT * 0.006,
+    marginLeft: SCREEN_WIDTH * 0.05,
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    fontFamily: poppins.bold,
+    fontSize: SCREEN_HEIGHT * 0.023,
+    fontFamily: Nunito.bold,
   },
   productList: {
-    paddingBottom: 20,
+    paddingBottom: SCREEN_HEIGHT * 0.025,
   },
   productCard: {
-    width: width * 0.9,
+    width: SCREEN_WIDTH * 0.9,
     alignSelf: 'center',
     backgroundColor: '#fff',
-    padding: 15,
+    paddingHorizontal: SCREEN_WIDTH * 0.038,
+    paddingVertical: SCREEN_HEIGHT * 0.018,
     borderRadius: 10,
     elevation: 5,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    marginBottom: 15,
+    marginBottom: SCREEN_HEIGHT * 0.018,
+  },
+  productCardOutOfStock: {
+    opacity: 0.85,
   },
   productRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'stretch',
   },
   detailsContainer: {
-    width: '50%',
+    flex: 1,
+    marginRight: SCREEN_WIDTH * 0.025,
+    justifyContent: 'space-between',
   },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 5,
+    marginBottom: SCREEN_HEIGHT * 0.004,
   },
   label: {
-    fontSize: 16,
+    fontSize: SCREEN_HEIGHT * 0.018,
     color: '#333',
-    fontFamily: poppins.regular,
+    fontFamily: Nunito.regular,
   },
   value: {
-    fontSize: 16,
-    fontWeight: '500',
-    fontFamily: poppins.medium,
+    fontSize: SCREEN_HEIGHT * 0.018,
+    fontFamily: Nunito.medium,
+  },
+  colorValueContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  colorCircle: {
+    width: SCREEN_WIDTH * 0.03,
+    height: SCREEN_WIDTH * 0.03,
+    borderRadius: (SCREEN_WIDTH * 0.05) / 2,
+    borderWidth: 1,
+    borderColor: '#999',
   },
   productCode: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: SCREEN_HEIGHT * 0.018,
     color: '#D45500',
-    fontFamily: poppins.semiBold,
+    fontFamily: Nunito.semiBold,
   },
   price: {
     color: 'red',
-    fontFamily: poppins.medium,
+    fontFamily: Nunito.medium,
   },
   quantity: {
     color: 'red',
-    fontFamily: poppins.medium,
+    fontFamily: Nunito.medium,
   },
   imageWrapper: {
     backgroundColor: '#F4F0EC',
@@ -469,63 +621,88 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     justifyContent: 'center',
     alignItems: 'center',
+    width: SCREEN_WIDTH * 0.36,
+    height: SCREEN_HEIGHT * 0.18,
+    position: 'relative',
   },
   productImage: {
-    width: 145,
-    height: 155,
+    width: '100%',
+    height: '100%',
+  },
+  productImageOutOfStock: {
+    opacity: 0.5,
+  },
+  outOfStockBadge: {
+    position: 'absolute',
+    top: SCREEN_HEIGHT * 0.01,
+    right: 0,
+    backgroundColor: '#FF0000',
+    paddingHorizontal: SCREEN_WIDTH * 0.02,
+    paddingVertical: SCREEN_HEIGHT * 0.006,
+    borderTopLeftRadius: 5,
+    borderBottomLeftRadius: 5,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+  },
+  outOfStockText: {
+    color: '#FFFFFF',
+    fontSize: SCREEN_HEIGHT * 0.012,
+    fontFamily: Nunito.bold,
+    letterSpacing: 0.5,
   },
   emptyContainer: {
-    padding: 20,
+    padding: SCREEN_HEIGHT * 0.025,
     alignItems: 'center',
     justifyContent: 'center',
     flex: 1,
   },
   emptyText: {
-    fontSize: 16,
+    fontSize: SCREEN_HEIGHT * 0.018,
     color: '#777',
-    fontFamily: poppins.regular,
+    fontFamily: Nunito.regular,
   },
   centerLoader: {
-    marginTop: 50,
+    marginTop: SCREEN_HEIGHT * 0.06,
   },
   footerLoader: {
-    marginVertical: 20,
+    marginVertical: SCREEN_HEIGHT * 0.025,
   },
   sizeContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 5,
+    paddingVertical: SCREEN_HEIGHT * 0.004,
   },
   dropdownWrapper: {
     flex: 1,
-    marginLeft: "10%",
+    marginLeft: SCREEN_WIDTH * 0.05,
   },
   dropdown: {
     backgroundColor: '#F5F5F5',
     borderRadius: 5,
     borderWidth: 1,
     borderColor: '#ddd',
-    paddingHorizontal: 20,
-    paddingVertical: 5,
-    height: 35,
+    paddingHorizontal: SCREEN_WIDTH * 0.03,
+    paddingVertical: SCREEN_HEIGHT * 0.006,
+    height: SCREEN_HEIGHT * 0.042,
     flex: 1,
-    width: width * 0.3,
+    width: SCREEN_WIDTH * 0.3,
   },
   dropdownDisabled: {
     opacity: 0.7,
   },
   dropdownPlaceholder: {
-    fontSize: 16,
-    fontWeight: '500',
+    fontSize: SCREEN_HEIGHT * 0.018,
     color: '#333',
-    fontFamily: poppins.medium,
+    fontFamily: Nunito.medium,
   },
   dropdownSelectedText: {
-    fontSize: 16,
-    fontWeight: '500',
+    fontSize: SCREEN_HEIGHT * 0.018,
     color: '#333',
-    fontFamily: poppins.medium,
+    fontFamily: Nunito.medium,
   },
   dropdownContainer: {
     backgroundColor: '#FFF',
@@ -539,13 +716,86 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
   },
   dropdownItemText: {
-    fontSize: 14,
+    fontSize: SCREEN_HEIGHT * 0.016,
     color: '#333',
-    fontFamily: poppins.regular,
+    fontFamily: Nunito.regular,
   },
   dropdownArrow: {
-    fontSize: 10,
+    fontSize: SCREEN_HEIGHT * 0.012,
     color: '#666',
-    fontFamily: poppins.regular,
+    fontFamily: Nunito.regular,
+  },
+  singleSizeContainer: {
+    borderWidth: 1, 
+    borderColor: '#ddd', 
+    paddingVertical: SCREEN_HEIGHT * 0.005,
+    paddingHorizontal: SCREEN_WIDTH * 0.02,
+    borderRadius: 5, 
+    backgroundColor: '#F5F5F5', 
+    width: SCREEN_WIDTH * 0.3, 
+    alignItems: 'center',
+    justifyContent:"center"
+  },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContainer: {
+    width: SCREEN_WIDTH * 0.85,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    paddingHorizontal: SCREEN_WIDTH * 0.06,
+    paddingVertical: SCREEN_HEIGHT * 0.03,
+    alignItems: 'center',
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+  },
+  modalTitle: {
+    fontSize: SCREEN_HEIGHT * 0.026,
+    fontFamily: Nunito.bold,
+    color: '#D45500',
+    marginBottom: SCREEN_HEIGHT * 0.015,
+  },
+  modalMessage: {
+    fontSize: SCREEN_HEIGHT * 0.018,
+    fontFamily: Nunito.regular,
+    color: '#555',
+    textAlign: 'center',
+    marginBottom: SCREEN_HEIGHT * 0.035,
+    lineHeight: SCREEN_HEIGHT * 0.026,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: SCREEN_HEIGHT * 0.017,
+    borderRadius: 10,
+    marginHorizontal: SCREEN_WIDTH * 0.02,
+    alignItems: 'center',
+  },
+  cancelButton: {
+    backgroundColor: '#f0f0f0',
+  },
+  exitButton: {
+    backgroundColor: '#D45500',
+  },
+  cancelButtonText: {
+    fontSize: SCREEN_HEIGHT * 0.018,
+    fontFamily: Nunito.semiBold,
+    color: '#333',
+  },
+  exitButtonText: {
+    fontSize: SCREEN_HEIGHT * 0.018,
+    fontFamily: Nunito.semiBold,
+    color: '#fff',
   },
 });

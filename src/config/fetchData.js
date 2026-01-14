@@ -97,7 +97,35 @@ getOrderDetails: (orderId) => {
     let url = 'complaint';
     return api.postMethod(url, data, false);
   },
+  getPercentage:async()=>{
+    let url='users/percentages/user'
+    return api.getMethod(url)
+  },
+  getUser:async(data)=>{
+    let url=`users/${data}`
+    return api.getMethod(url)
+  },
+  getCartCount:async()=>{
+    let url=`cart/count`
+    return api.getMethod(url)
+  },
+  createOrder:async(data)=>{
+    const payload={"amount":data}
+    let url=`users/payment/razorpay/order`
+    return api.postMethod(url,payload,false)
+  },
+verifyOrder: async (data, customHeaders) => {
+  let url = `users/payment/razorpay/verify`;
+  return api.postMethod(url, data, customHeaders, false);
+},
+getPaymentHistory: async (page = 1, limit = 10) => {
+  let url = `orders/payment/user/history?page=${page}&limit=${limit}`;
+  return api.getMethod(url);
+},
 
+
+
+  
 
   // Old APIs
   products: data => {

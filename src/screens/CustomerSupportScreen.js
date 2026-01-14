@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import fetchData from '../config/fetchData';
-import poppins from '../utils/fonts';
+import Nunito from '../utils/fonts';
 import showToast from '../utils/common_fn';
 
 const CustomerSupportModal = ({ visible, onClose }) => {
@@ -203,7 +203,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     marginBottom: 12,
     textAlign: 'center',
-    fontFamily: poppins.bold,
+    fontFamily: Nunito.bold,
   },
   input: {
     borderWidth: 1,
@@ -212,7 +212,7 @@ const styles = StyleSheet.create({
     padding: 12,
     fontSize: 15,
     marginBottom: 4,
-    fontFamily: poppins.regular,
+    fontFamily: Nunito.regular,
   },
   textArea: {
     height: 80,
@@ -226,7 +226,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginBottom: 6,
     marginLeft: 4,
-    fontFamily: poppins.regular,
+    fontFamily: Nunito.regular,
   },
   raiseBtn: {
     backgroundColor: '#F58502',
@@ -238,7 +238,7 @@ const styles = StyleSheet.create({
   raiseText: {
     color: '#fff',
     fontSize: 16,
-    fontFamily: poppins.semiBold,
+    fontFamily: Nunito.semiBold,
   },
   iconRow: {
     flexDirection: 'row',
@@ -251,6 +251,6 @@ const styles = StyleSheet.create({
   closeText: {
     color: 'red',
     fontSize: 16,
-    fontFamily: poppins.regular,
+    fontFamily: Nunito.regular,
   },
 });

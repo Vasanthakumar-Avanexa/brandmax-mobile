@@ -29,7 +29,7 @@ export const api = {
   getMethod: async (url) => {
   const headers = await api.header();
   const fullUrl = baseUrl + url;
-  console.log('GET Request →', fullUrl);  // ← ADD THIS LINE
+  console.log('GET Request →', fullUrl); 
 
   return axios.get(fullUrl, { headers })
     .then(res => res.data)
@@ -39,38 +39,59 @@ export const api = {
     });
 },
 
-  postMethod: async (url, data, isForm = true) => {
-    let headers = await api.header(!isForm); 
-    let payload = data;
+postMethod: async (url, data, customHeadersOrIsForm = true, isForm = null) => {
+  let customHeaders = null;
+  let useFormData = true;
 
-    if (isForm) {
-      const formData = new FormData();
-      Object.keys(data).forEach(key => {
-        if (Array.isArray(data[key])) {
-          data[key].forEach((item, index) => {
-            Object.keys(item).forEach(itemKey => {
-              formData.append(`${key}[${index}][${itemKey}]`, item[itemKey]);
-            });
+  if (typeof customHeadersOrIsForm === 'boolean') {
+    useFormData = customHeadersOrIsForm;
+  } else if (typeof customHeadersOrIsForm === 'object' && customHeadersOrIsForm !== null) {
+    customHeaders = customHeadersOrIsForm;
+    useFormData = isForm !== null ? isForm : false; 
+  }
+
+  let headers = await api.header(!useFormData);
+  
+  if (customHeaders) {
+    headers = { ...headers, ...customHeaders };
+  }
+
+  let payload = data;
+
+  if (useFormData) {
+    const formData = new FormData();
+    Object.keys(data).forEach(key => {
+      if (Array.isArray(data[key])) {
+        data[key].forEach((item, index) => {
+          Object.keys(item).forEach(itemKey => {
+            formData.append(`${key}[${index}][${itemKey}]`, item[itemKey]);
           });
-        } else {
-          formData.append(key, data[key]);
-        }
-      });
-      payload = formData;
-    } else {
-      payload = data; 
-    }
+        });
+      } else {
+        formData.append(key, data[key]);
+      }
+    });
+    payload = formData;
+  }
 
-    console.log('Sending payload →', payload);
-    console.log('Headers →', headers);
-    
-    return axios.post(baseUrl + url, payload, { headers })
-      .then(res => res.data)
-      .catch(err => {
-        console.error('POST Error:', err.response?.data || err.message);
-        throw err;
-      });
-  },
+  const fullUrl = `${baseUrl}${url}`;
+
+  console.log('Full URL →', fullUrl);
+  console.log('Sending payload →', payload);
+  console.log('Headers →', headers);
+
+  return axios
+    .post(fullUrl, payload, { headers })
+    .then(res => res.data)
+    .catch(err => {
+      console.error(
+        'POST Error:',
+        err.response?.data || err.message
+      );
+      throw err;
+    });
+},
+
 
   putMethod: async (url, data) => {
     const headers = await api.header(true);

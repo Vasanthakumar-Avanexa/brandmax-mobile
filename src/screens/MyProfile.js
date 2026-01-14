@@ -7,7 +7,7 @@ import {
   SafeAreaView,
 } from 'react-native';
 import { Avatar } from 'react-native-paper';
-import poppins from '../utils/fonts';
+import Nunito from '../utils/fonts';
 
 const MyProfile = ({ route }) => {
   const { userDetails } = route.params || {};
@@ -25,7 +25,6 @@ const MyProfile = ({ route }) => {
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.scrollContainer}>
-        {/* Avatar Section */}
         <View style={styles.avatarContainer}>
           <Avatar.Image
             size={130}
@@ -35,11 +34,9 @@ const MyProfile = ({ route }) => {
           />
         </View>
 
-        {/* User Name & Email */}
         <Text style={styles.userName}>{userDetails.owner_name || 'User Name'}</Text>
         <Text style={styles.userEmail}>{userDetails.email || 'No email available'}</Text>
 
-        {/* Profile Details Card */}
         <View style={styles.detailsCard}>
           <View style={styles.detailRow}>
             <Text style={styles.label}>Phone</Text>
@@ -87,13 +84,13 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: 28,
     color: '#000',
-    fontFamily: poppins.bold,
+    fontFamily: Nunito.bold,
     marginBottom: 8,
   },
   userEmail: {
     fontSize: 18,
     color: '#666',
-    fontFamily: poppins.medium,
+    fontFamily: Nunito.medium,
     marginBottom: 30,
   },
   detailsCard: {
@@ -120,20 +117,20 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 16,
     color: '#D45500',
-    fontFamily: poppins.semiBold,
+    fontFamily: Nunito.semiBold,
     flex: 1,
   },
   value: {
     fontSize: 17,
     color: '#333',
-    fontFamily: poppins.medium,
+    fontFamily: Nunito.medium,
     flex: 2,
     textAlign: 'right',
   },
   noDataText: {
     fontSize: 18,
     color: '#999',
-    fontFamily: poppins.regular,
+    fontFamily: Nunito.regular,
     textAlign: 'center',
     marginTop: 50,
   },

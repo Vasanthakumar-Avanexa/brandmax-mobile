@@ -1,10 +1,12 @@
-const poppins = {
-  bold: 'Poppins-Bold',
-  semiBold: 'Poppins-SemiBold',
-  medium: 'Poppins-Medium',
-  regular: 'Poppins-Regular',
-  light: 'Poppins-Light',
-  extraBold: 'Poppins-ExtraBold',
+const Nunito = {
+  bold: 'Nunito-Bold',
+  semiBold: 'Nunito-SemiBold',
+  medium: 'Nunito-Medium',
+  regular: 'Nunito-Regular',
+  light: 'Nunito-Light',
+  extraBold: 'Nunito-ExtraBold',
+  italic:'Nunito-Italic',
+  blackItalic:'Nunito-BlackItalic'
 };
 
-export default poppins;
+export default Nunito;

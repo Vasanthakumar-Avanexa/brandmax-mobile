@@ -18,7 +18,7 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import Entypo from 'react-native-vector-icons/Entypo';
 import fetchData from '../config/fetchData';
 import showToast from '../utils/common_fn';
-import poppins from '../utils/fonts';
+import Nunito from '../utils/fonts';
 
 const { width } = Dimensions.get('window');
 
@@ -71,14 +71,12 @@ const SingleProperty = ({ route, navigation }) => {
     }
   };
 
-  // Calculate remaining quantity based on available stock and cart quantity
   const getRemainingQuantity = (sizeItem) => {
     const available = sizeItem.quantity;
     const inCart = sizeItem.cartQuantity || 0;
     return available - inCart;
   };
 
-  // Check if size is already in cart
   const isItemAlreadyInCart = (sizeItem) => {
     return sizeItem.cartQuantity && sizeItem.cartQuantity > 0;
   };
@@ -223,25 +221,26 @@ const SingleProperty = ({ route, navigation }) => {
     ? [{ uri: product.product_image }]
     : fallbackImages.map(src => ({ source: src }));
 
-  const sizes = product.productSizes || [];
+  const sizes = (product.productSizes || []).filter(s => s.quantity > 0);
   const sizeText =
     sizes.length > 0
       ? sizes
-          .filter(s => s.quantity > 0)
           .map(s => s.size?.size)
           .join(', ') || 'N/A'
       : 'N/A';
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+  <View style={styles.container}> 
+    <StatusBar backgroundColor="#D45500" barStyle="light-content" />
+    <TouchableOpacity
+      onPress={() => navigation.goBack()}
+      style={styles.backButton}
+    >
+      <Icon name="arrow-back" size={30} color="black" />
+    </TouchableOpacity>
+    
+    <ScrollView style={{flex:1}}showsVerticalScrollIndicator={false}>
       <View style={styles.imageContainer}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backButton}
-        >
-          <Icon name="arrow-back" size={30} color="black" />
-        </TouchableOpacity>
-
         <FlatList
           ref={flatListRef}
           data={
@@ -282,54 +281,53 @@ const SingleProperty = ({ route, navigation }) => {
         </Text>
         {outOffStock ? (
           <View style={styles.stockRow}>
-            <Entypo name="cross" size={25} color="red" />
+            <Entypo name="cross" size={22} color="red" />
             <Text style={styles.stockText}>Not In Stock</Text>
           </View>
         ) : (
           <View style={styles.stockRow}>
-            <Entypo name="check" size={25} color="green" />
+            <Entypo name="check" size={22} color="green" />
             <Text style={styles.stockText}>In Stock</Text>
           </View>
         )}
       </View>
 
-      <View style={styles.card}>
-        <View style={styles.cardRow}>
-          <Text style={styles.cardText}>Color:</Text>
-          <Text style={styles.cardText}>{product.colour?.color || 'N/A'}</Text>
+      <View style={styles.compactCard}>
+        <View style={styles.compactRow}>
+          <Text style={styles.compactLabel}>Color:</Text>
+          <Text style={styles.compactValue}>{product.colour?.color || 'N/A'}</Text>
         </View>
-        <View style={styles.cardRow}>
-          <Text style={styles.cardText}>MRP:</Text>
-          <Text style={styles.priceText}>
-            Rs. {product.product_mrp || product.product_price || 'N/A'}
+        
+        <View style={styles.compactRow}>
+          <Text style={styles.compactLabel}>MRP:</Text>
+          <Text style={styles.compactPrice}>
+            ₹{product.product_mrp || product.product_price || '0'}
           </Text>
         </View>
-      </View>
 
-      <View style={styles.card}>
-        <View style={styles.cardRow}>
-          <Text style={styles.cardText}>Price:</Text>
-          <Text style={styles.priceText}>
-            Rs. {product.product_price || 'N/A'}
+        <View style={styles.compactRow}>
+          <Text style={styles.compactLabel}>Price:</Text>
+          <Text style={styles.compactPrice}>
+            ₹{product.product_price || '0'}
           </Text>
         </View>
-        <View style={styles.cardRow}>
-          <Text style={styles.cardText}>Margin:</Text>
-          <Text style={styles.cardText}>{product.product_margin || '0'}%</Text>
-        </View>
-      </View>
 
-      <View style={styles.card}>
-        <View style={styles.cardRow}>
-          <Text style={styles.cardText}>Size Available:</Text>
-          <Text style={styles.cardText}>({sizeText})</Text>
+        <View style={styles.compactRow}>
+          <Text style={styles.compactLabel}>Margin:</Text>
+          <Text style={styles.compactValue}>{product.product_margin || '0'}%</Text>
+        </View>
+
+        <View style={styles.compactRow}>
+          <Text style={styles.compactLabel}>Size Available:</Text>
+          <View style={{width:width*0.40,alignItems:'flex-end'}}><Text style={styles.compactValue}numberOfLines={2}>({sizeText})</Text></View>
+          
         </View>
       </View>
 
       <View style={styles.divider} />
 
       <View style={styles.actionRow}>
-        <Text style={styles.cardText}>Cut Size</Text>
+        <Text style={styles.actionLabel}>Select Size & Quantity</Text>
         <TouchableOpacity
           style={styles.orangeButton}
           onPress={() => setCutSizeModalVisible(true)}
@@ -341,12 +339,12 @@ const SingleProperty = ({ route, navigation }) => {
       <View style={styles.bottomInfoRow}>
         <View style={styles.infoCard}>
           <Text style={styles.orangeText}>
-            Quantity: {setOrderQuantity + getTotalCutSizeQuantity()}
+            Qty: {setOrderQuantity + getTotalCutSizeQuantity()}
           </Text>
         </View>
         <View style={styles.infoCard}>
           <Text style={styles.orangeText}>
-            Total Rate: Rs.{getTotalAmount().toFixed(2)}
+            Total: ₹{getTotalAmount().toFixed(2)}
           </Text>
         </View>
       </View>
@@ -415,7 +413,6 @@ const SingleProperty = ({ route, navigation }) => {
                       <TouchableOpacity
                         style={styles.quantityButton}
                         onPress={() => handleCutSizeIncrease(sizeItem.id)}
-                        // disabled={remaining <= 0}
                       >
                         <Icon name="add" size={18} color="#fff" />
                       </TouchableOpacity>
@@ -435,7 +432,9 @@ const SingleProperty = ({ route, navigation }) => {
         </View>
       </Modal>
     </ScrollView>
-  );
+  </View>
+);
+
 };
 
 export default SingleProperty;
@@ -454,80 +453,100 @@ const styles = StyleSheet.create({
   loaderText: {
     fontSize: 16,
     color: '#333',
-    fontFamily: poppins.regular,
+    fontFamily: Nunito.regular,
   },
   imageContainer: {
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#F4F0EC',
-    marginBottom: 20,
+    marginBottom: 12,
   },
   backButton: {
     position: 'absolute',
     top: 10,
     left: 10,
     zIndex: 10,
-    backgroundColor: 'rgba(255,255,255,0.7)',
+    backgroundColor: 'rgba(255,255,255,0.9)',
     borderRadius: 20,
     padding: 5,
   },
-  image: { width, height: width * 0.9 },
+  image: { 
+    width, 
+    height: width * 0.79 
+  },
   dotContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    paddingVertical: 10,
+    paddingVertical: 8,
   },
   dot: {
     width: 8,
     height: 8,
     borderRadius: 4,
     backgroundColor: '#ccc',
-    marginHorizontal: 5,
+    marginHorizontal: 4,
   },
-  activeDot: { backgroundColor: '#D45500', width: 12, height: 8 },
+  activeDot: { 
+    backgroundColor: '#D45500', 
+    width: 12, 
+    height: 8 
+  },
   titleRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    marginVertical: 10,
+    alignItems: 'center',
+    paddingHorizontal: 15,
+    marginBottom: 12,
   },
   productCode: { 
-    fontSize: 20, 
+    fontSize: 18, 
     color: '#D45500',
-    fontFamily: poppins.bold,
+    fontFamily: Nunito.bold,
+    flex: 1,
   },
-  stockRow: { flexDirection: 'row', alignItems: 'center' },
+  stockRow: { 
+    flexDirection: 'row', 
+    alignItems: 'center' 
+  },
   stockText: { 
-    marginLeft: 8, 
-    fontSize: 16,
-    fontFamily: poppins.semiBold,
+    marginLeft: 5, 
+    fontSize: 14,
+    fontFamily: Nunito.semiBold,
   },
-  card: {
+  
+  compactCard: {
     backgroundColor: '#fff',
     marginHorizontal: 15,
-    marginTop: 10,
-    padding: 15,
+    padding: 12,
     borderRadius: 10,
     elevation: 3,
   },
-  cardRow: {
+  compactRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginVertical: 5,
+    alignItems: 'center',
+    paddingVertical: 6,
   },
-  cardText: { 
-    fontSize: 16, 
-    fontFamily: poppins.semiBold,
+  compactLabel: { 
+    fontSize: 15, 
+    color: '#555',
+    fontFamily: Nunito.medium,
   },
-  priceText: { 
-    fontSize: 16, 
+  compactValue: { 
+    fontSize: 15, 
+    color: '#333',
+    fontFamily: Nunito.semiBold,
+  },
+  compactPrice: { 
+    fontSize: 15, 
     color: 'red',
-    fontFamily: poppins.semiBold,
+    fontFamily: Nunito.semiBold,
   },
+  
   divider: {
     height: 1,
     backgroundColor: '#eee',
-    marginVertical: 20,
+    marginVertical: 15,
     marginHorizontal: 15,
   },
   actionRow: {
@@ -535,17 +554,23 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 15,
+    marginBottom: 12,
+  },
+  actionLabel: {
+    fontSize: 15,
+    fontFamily: Nunito.semiBold,
+    color: '#333',
   },
   orangeButton: {
     backgroundColor: '#D45500',
     paddingHorizontal: 20,
-    paddingVertical: 10,
+    paddingVertical: 8,
     borderRadius: 8,
   },
   buttonText: { 
     color: '#fff', 
-    fontSize: 16,
-    fontFamily: poppins.bold,
+    fontSize: 15,
+    fontFamily: Nunito.bold,
   },
   quantityControl: {
     flexDirection: 'row',
@@ -560,38 +585,33 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  quantityText: {
-    fontSize: 18,
-    minWidth: 40,
-    textAlign: 'center',
-    fontFamily: poppins.bold,
-  },
   bottomInfoRow: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
     paddingHorizontal: 15,
-    marginTop: 20,
+    marginTop: 8,
+    marginBottom: 12,
   },
   infoCard: {
     backgroundColor: '#fff',
-    paddingHorizontal: 15,
-    paddingVertical: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 8,
     elevation: 3,
     marginLeft: 10,
   },
   orangeText: { 
     color: '#D45500', 
-    fontSize: 16,
-    fontFamily: poppins.bold,
+    fontSize: 14,
+    fontFamily: Nunito.bold,
   },
   addToCartButton: {
     backgroundColor: '#D45500',
-    margin: 15,
-    padding: 15,
+    marginHorizontal: 15,
+    marginBottom: "30%",
+    padding: 14,
     borderRadius: 10,
     alignItems: 'center',
-    marginBottom: '30%',
   },
   disabledButton: {
     backgroundColor: '#E89674',
@@ -620,7 +640,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 20,
     color: '#333',
-    fontFamily: poppins.bold,
+    fontFamily: Nunito.bold,
   },
   modalBody: {
     padding: 20,
@@ -629,7 +649,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 15,
+    paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
   },
@@ -637,43 +657,38 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   sizeText: {
-    fontSize: 18,
+    fontSize: 17,
     color: '#333',
-    fontFamily: poppins.semiBold,
+    fontFamily: Nunito.semiBold,
   },
   availableText: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#666',
-    marginTop: 4,
-    fontFamily: poppins.regular,
+    marginTop: 3,
+    fontFamily: Nunito.regular,
   },
   cartQtyText: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#D45500',
     marginTop: 2,
-    fontFamily: poppins.semiBold,
-  },
-  remainingText: {
-    fontSize: 12,
-    color: '#FF6B6B',
-    marginTop: 2,
-    fontFamily: poppins.medium,
+    fontFamily: Nunito.semiBold,
   },
   quantityInput: {
     borderWidth: 1,
     borderColor: '#ddd',
     borderRadius: 8,
     width: 50,
-    height: width * 0.1,
+    height: 40,
+    padding: 5,
     textAlign: 'center',
-    fontSize: 16,
-    fontFamily: poppins.semiBold,
+    fontSize: 15,
+    fontFamily: Nunito.semiBold,
   },
   modalConfirmButton: {
     backgroundColor: '#D45500',
     marginHorizontal: 20,
     marginTop: 10,
-    padding: 15,
+    padding: 14,
     borderRadius: 10,
     alignItems: 'center',
   },

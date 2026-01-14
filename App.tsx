@@ -53,24 +53,28 @@ function MainApp() {
   }, [dispatch]);
 
   useEffect(() => {
-    console.log('🔄 Auth State Changed:');
-    console.log('   - loggedIn:', loggedIn);
-    console.log('   - isGuestUser:', isGuestUser);
   }, [loggedIn, isGuestUser]);
 
   if (loading) {
     return <SplashScreen />;
   }
-
-  console.log('🎯 Rendering Navigator:');
-  console.log('   - loggedIn:', loggedIn);
-  console.log('   - isGuestUser:', isGuestUser);
-
+  
   const getNavigatorKey = () => {
     if (loggedIn) return 'logged-in';
     if (isGuestUser) return 'guest';
     return 'auth';
   };
+
+  const allowedRoutes = [
+    'Home', 
+    'Cart', 
+    'Profile', 
+    'Login', 
+    'RequestRegister', 
+    'OtpVerify'
+  ];
+
+  const shouldShowCustomerSupport = currentRoute && allowedRoutes.includes(currentRoute);
 
   return (
     <>
@@ -93,7 +97,7 @@ function MainApp() {
         {loggedIn || isGuestUser ? <AppNavigator /> : <AuthNavigator />}
       </NavigationContainer>
 
-      {currentRoute !== 'TrackPayments' && <CustomerSupportButton />}
+      {shouldShowCustomerSupport && <CustomerSupportButton />}
     </>
   );
 }
@@ -101,7 +105,7 @@ function MainApp() {
 export default function App() {
   return (
     <GestureHandlerRootView style={styles.container}>
-      <StatusBar backgroundColor="#F58502" barStyle="light-content" />
+      <StatusBar backgroundColor="#D45500" barStyle="light-content" />
       <Provider store={store}>
         <MainApp />
       </Provider>

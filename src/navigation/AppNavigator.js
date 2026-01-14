@@ -1,8 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import {
-  createDrawerNavigator,
-} from '@react-navigation/drawer';
+import { createDrawerNavigator } from '@react-navigation/drawer';
 import { createStackNavigator } from '@react-navigation/stack';
 import {
   TouchableOpacity,
@@ -11,15 +9,16 @@ import {
   StatusBar,
   Image,
   StyleSheet,
-  Dimensions,
   Alert,
 } from 'react-native';
 import Feather from 'react-native-vector-icons/Feather';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { setLoggedIn, setGuestUser } from '../store/authSlice';
-import poppins from '../utils/fonts';
-
+import { setCartCount } from '../store/ProductSlice';
+import Nunito from '../utils/fonts';
+import fetchData from '../config/fetchData';
+import Icon from "react-native-vector-icons/MaterialIcons";
 import Home from '../screens/Home';
 import Cart from '../screens/Cart';
 import Profile from '../screens/Profile';
@@ -37,10 +36,43 @@ import TrackPayments from '../screens/TrackPayments';
 import LoginScreen from '../login/LoginScreen';
 import RequestRegister from '../login/Register';
 import OtpVerifyScreen from '../login/OtpVerifyScreen';
+import PaymentHistory from '../payment/PaymentHistory';
 
 const Tab = createBottomTabNavigator();
 const Drawer = createDrawerNavigator();
 const Stack = createStackNavigator();
+
+function CartBadge({ count }) {
+  if (count === 0) return null;
+  
+  return (
+    <View
+      style={{
+        position: 'absolute',
+        top: -6,
+        right: -8,
+        backgroundColor: 'red',
+        borderRadius: 10,
+        minWidth: 16,
+        height: 16,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: 4,
+        zIndex: 1,
+      }}
+    >
+      <Text
+        style={{
+          color: '#fff',
+          fontSize: 10,
+          fontWeight: 'bold',
+        }}
+      >
+        {count > 99 ? '99+' : count || 0}
+      </Text>
+    </View>
+  );
+}
 
 function CustomDrawerContent(props) {
   const { navigation } = props;
@@ -77,6 +109,7 @@ function CustomDrawerContent(props) {
       await AsyncStorage.removeItem('isGuestUser');
       dispatch(setLoggedIn(false));
       dispatch(setGuestUser(false));
+      dispatch(setCartCount(0)); 
     } catch (error) {
       console.log('Logout error:', error);
     }
@@ -106,10 +139,7 @@ function CustomDrawerContent(props) {
       </View>
 
       {isGuestUser ? (
-        <TouchableOpacity
-          style={styles.drawerItem}
-          onPress={navigateToLogin}
-        >
+        <TouchableOpacity style={styles.drawerItem} onPress={navigateToLogin}>
           <Feather name="log-in" size={22} color="#D45500" />
           <Text style={styles.drawerLabel}>Login</Text>
         </TouchableOpacity>
@@ -138,14 +168,14 @@ function CustomDrawerContent(props) {
             <Feather name="pie-chart" size={22} color="#D45500" />
             <Text style={styles.drawerLabel}>Track Payments</Text>
           </TouchableOpacity>
-
-          {/* <TouchableOpacity
+          <TouchableOpacity
             style={styles.drawerItem}
-            onPress={() => navigateAndClose('CustomerSupport')}
+            onPress={() => navigateAndClose('PaymentHistory')}
           >
-            <Feather name="phone" size={22} color="#D45500" />
-            <Text style={styles.drawerLabel}>Customer Support</Text>
-          </TouchableOpacity> */}
+             <Icon name="receipt-long" size={22} color="#D45500" />
+            <Text style={styles.drawerLabel}>Payment History</Text>
+          </TouchableOpacity>
+
 
           <TouchableOpacity
             style={styles.drawerItem}
@@ -213,10 +243,18 @@ function CustomDrawerContent(props) {
 
 function TabNavigator({ navigation }) {
   const [isGuestUser, setIsGuestUser] = useState(false);
+  const cartCount = useSelector((state) => state.product.cartCount);
+  const dispatch = useDispatch();
 
   useEffect(() => {
     checkGuestUser();
   }, []);
+
+  useEffect(() => {
+    if (!isGuestUser) {
+      fetchCartCount();
+    }
+  }, [isGuestUser]);
 
   const checkGuestUser = async () => {
     try {
@@ -227,8 +265,18 @@ function TabNavigator({ navigation }) {
     }
   };
 
+  const fetchCartCount = async () => {
+    try {
+      const response = await fetchData.getCartCount();
+      if (response && response.success) {
+        dispatch(setCartCount(response.count || 0));
+      }
+    } catch (error) {
+      console.error('Error fetching cart count:', error);
+    }
+  };
+
   const handleLoginPress = () => {
-    console.log('Navigating to Login Screen');
     navigation.navigate('Login');
   };
 
@@ -238,10 +286,15 @@ function TabNavigator({ navigation }) {
         headerShown: true,
         headerTitle: isGuestUser ? 'Guest' : route.name,
         headerTintColor: '#fff',
-        headerTitleStyle: { fontSize: 20, fontWeight: 'bold' },
+        headerTitleStyle: {
+          fontSize: 20,
+          fontFamily: Nunito.bold,
+        },
         headerStyle: {
           backgroundColor: '#D45500',
         },
+        tabBarActiveTintColor: '#D45500',
+        tabBarInactiveTintColor: '#888',
 
         headerLeft: () => {
           if (isGuestUser) {
@@ -270,17 +323,16 @@ function TabNavigator({ navigation }) {
             <TouchableOpacity
               onPress={() => {
                 navigation.navigate('Tabs', { screen: 'Home' });
-                navigation.goBack();
               }}
               style={{ marginLeft: 15 }}
             >
-              <Feather name="arrow-left" size={24} color="#fff" />
+              <Feather name="arrow-left" size={22} color="#fff" />
             </TouchableOpacity>
           );
         },
 
         headerRight: () => {
-          if (isGuestUser) {
+          if (isGuestUser || route.name === 'Cart') {
             return null;
           }
 
@@ -289,7 +341,10 @@ function TabNavigator({ navigation }) {
               onPress={() => navigation.navigate('Tabs', { screen: 'Cart' })}
               style={{ marginRight: 15 }}
             >
-              <Feather name="shopping-cart" size={24} color="#fff" />
+              <View style={{ position: 'relative' }}>
+                <CartBadge count={cartCount} />
+                <Feather name="shopping-cart" size={24} color="#fff" />
+              </View>
             </TouchableOpacity>
           );
         },
@@ -305,14 +360,31 @@ function TabNavigator({ navigation }) {
             else if (route.name === 'Profile') iconName = 'user';
           }
 
+          if (route.name === 'Cart' && !isGuestUser) {
+            return (
+              <View style={{ position: 'relative' }}>
+                <CartBadge count={cartCount} />
+                <Feather name={iconName} size={size} color={color} />
+              </View>
+            );
+          }
+
           return <Feather name={iconName} size={size} color={color} />;
         },
 
         tabBarLabel: ({ color }) => {
           if (isGuestUser) {
-            return <Text style={{ color, fontSize: 12 }}>Login</Text>;
+            return (
+              <Text style={{ color, fontSize: 12, fontFamily: Nunito.medium }}>
+                Login
+              </Text>
+            );
           }
-          return <Text style={{ color, fontSize: 12 }}>{route.name}</Text>;
+          return (
+            <Text style={{ color, fontSize: 12, fontFamily: Nunito.medium }}>
+              {route.name}
+            </Text>
+          );
         },
       })}
     >
@@ -361,6 +433,7 @@ export default function AppNavigator() {
       screenOptions={{ headerShown: false }}
       initialRouteName="TrackPayments"
     >
+      <Stack.Screen name="MainDrawer" component={MainDrawer} />
       <Stack.Screen
         name="TrackPayments"
         component={TrackPayments}
@@ -368,17 +441,24 @@ export default function AppNavigator() {
           headerShown: false,
         }}
       />
-      
       <Stack.Screen
-        name="MainDrawer"
-        component={MainDrawer}
-      />
+        name="PaymentHistory"
+        component={PaymentHistory}
+        options={{
+          headerShown: true,
+          headerTitle: 'Payment History',
+          headerTitleStyle: { fontFamily: Nunito.bold },
+          headerStyle: { backgroundColor: '#D45500' },
+          headerTintColor: '#fff',
+        }}
+      />  
       <Stack.Screen
         name="AboutBrandMax"
         component={AboutUsScreen}
         options={{
           headerShown: true,
           headerTitle: 'About Us',
+          headerTitleStyle: { fontFamily: Nunito.bold },
           headerStyle: { backgroundColor: '#D45500' },
           headerTintColor: '#fff',
         }}
@@ -389,6 +469,7 @@ export default function AppNavigator() {
         options={{
           headerShown: true,
           headerTitle: 'Terms & Conditions',
+          headerTitleStyle: { fontFamily: Nunito.bold },
           headerStyle: { backgroundColor: '#D45500' },
           headerTintColor: '#fff',
         }}
@@ -420,6 +501,7 @@ export default function AppNavigator() {
         options={{
           headerShown: true,
           headerTitle: 'My Orders',
+          headerTitleStyle: { fontFamily: Nunito.bold },
           headerStyle: { backgroundColor: '#D45500' },
           headerTintColor: '#fff',
         }}
@@ -430,6 +512,7 @@ export default function AppNavigator() {
         options={{
           headerShown: true,
           headerTitle: 'My Profile',
+          headerTitleStyle: { fontFamily: Nunito.bold },
           headerStyle: { backgroundColor: '#D45500' },
           headerTintColor: '#fff',
         }}
@@ -440,6 +523,7 @@ export default function AppNavigator() {
         options={{
           headerShown: true,
           headerTitle: 'Confirm Order',
+          headerTitleStyle: { fontFamily: Nunito.bold },
           headerStyle: { backgroundColor: '#D45500' },
           headerTintColor: '#fff',
         }}
@@ -450,6 +534,7 @@ export default function AppNavigator() {
         options={{
           headerShown: true,
           headerTitle: 'Customer Support',
+          headerTitleStyle: { fontFamily: Nunito.bold },
           headerStyle: { backgroundColor: '#D45500' },
           headerTintColor: '#fff',
         }}
@@ -460,6 +545,7 @@ export default function AppNavigator() {
         options={{
           headerShown: true,
           headerTitle: 'FAQ',
+          headerTitleStyle: { fontFamily: Nunito.bold },
           headerStyle: { backgroundColor: '#D45500' },
           headerTintColor: '#fff',
         }}
@@ -470,6 +556,7 @@ export default function AppNavigator() {
         options={{
           headerShown: true,
           headerTitle: 'Privacy Policy',
+          headerTitleStyle: { fontFamily: Nunito.bold },
           headerStyle: { backgroundColor: '#D45500' },
           headerTintColor: '#fff',
         }}
@@ -480,37 +567,17 @@ export default function AppNavigator() {
         options={{
           headerShown: true,
           headerTitle: 'Order Summary',
+          headerTitleStyle: { fontFamily: Nunito.bold },
           headerStyle: { backgroundColor: '#D45500' },
           headerTintColor: '#fff',
         }}
       />
-      <Stack.Screen
-        name="SingleProperty"
-        component={SingleProperty}
-      />
+      <Stack.Screen name="SingleProperty" component={SingleProperty} />
     </Stack.Navigator>
   );
 }
 
-const { height } = Dimensions.get('window');
-
 const styles = StyleSheet.create({
-  logoContainer: {
-    alignItems: 'center',
-    paddingVertical: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  logo: {
-    width: 70,
-    height: 70,
-  },
-  logoText: {
-    marginTop: 8,
-    fontSize: 20,
-    color: '#D45500',
-    fontFamily: poppins.bold,
-  },
   drawerItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -521,7 +588,7 @@ const styles = StyleSheet.create({
     marginLeft: 16,
     fontSize: 16,
     color: '#333',
-    fontFamily: poppins.semiBold,
+    fontFamily: Nunito.semiBold,
   },
   versionContainer: {
     marginTop: 20,
@@ -530,7 +597,7 @@ const styles = StyleSheet.create({
   versionText: {
     fontSize: 14,
     color: '#888',
-    fontFamily: poppins.regular,
+    fontFamily: Nunito.regular,
   },
   logoutItem: {
     flexDirection: 'row',
@@ -545,6 +612,6 @@ const styles = StyleSheet.create({
     marginLeft: 16,
     fontSize: 16,
     color: '#D45500',
-    fontFamily: poppins.semiBold,
+    fontFamily: Nunito.semiBold,
   },
 });

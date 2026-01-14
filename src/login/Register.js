@@ -21,7 +21,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useDispatch } from 'react-redux';
 import { setLoggedIn, setGuestUser } from '../store/authSlice';
 import { useNavigation } from '@react-navigation/native';
-import poppins from '../utils/fonts';
+import Nunito from '../utils/fonts';
 
 const { width, height } = Dimensions.get('window');
 
@@ -98,6 +98,7 @@ const RequestRegister = () => {
   };
 
   const submitRequest = async () => {
+    dispatch(setGuestUser(false));
     const newErrors = validateForm();
 
     if (Object.keys(newErrors).length > 0) {
@@ -122,17 +123,12 @@ const RequestRegister = () => {
       state: form.state,
       is_active: false,
     };
-
-    console.log('Request Payload:', payload);
-
     try {
       const response = await fetchData.createUser(payload);
-      console.log('API Response:', response);
 
       if (response?.success) {
         showToast('Registration request submitted successfully!');
         
-        // Clear form
         setForm({
           phone: '',
           email: '',
@@ -154,8 +150,6 @@ const RequestRegister = () => {
         
         dispatch(setGuestUser(true));
         dispatch(setLoggedIn(false));
-        
-        console.log('Guest user mode activated - waiting for navigator switch');
 
       } else {
         showToast(
@@ -189,15 +183,17 @@ const RequestRegister = () => {
           {isRequired && <Text style={styles.asterisk}>*</Text>}
         </Text>
         <TextInput
-          style={[styles.input, hasError && styles.inputError]}
-          placeholder={label}
-          maxLength={key === 'pincode' ? 6 : key === 'phone' ? 10 : 1000}
-          keyboardType={keyboardType}
-          onChangeText={v => onChange(key, v)}
-          value={form[key]}
-          placeholderTextColor="#999"
-          editable={!loading}
-        />
+  style={[styles.input, hasError && styles.inputError]}
+  placeholder={label}
+  maxLength={key === 'pincode' ? 6 : key === 'phone' ? 10 : 1000}
+  keyboardType={keyboardType}
+  onChangeText={v => onChange(key, v)}
+  value={form[key]}
+  placeholderTextColor="#999"
+  editable={!loading}
+  autoCapitalize={key === 'email' ? 'none' : 'sentences'}
+/>
+
         {hasError && <Text style={styles.errorText}>{hasError}</Text>}
       </View>
     );
@@ -233,10 +229,18 @@ const RequestRegister = () => {
 
             <View style={styles.sectionContainer}>
               <Text style={styles.sectionTitle}>Required Information</Text>
-              {renderInputField('Phone', 'phone', 'number-pad', true)}
-              {renderInputField('Email', 'email', 'email-address', true)}
               {renderInputField('Shop Name', 'shop_name', 'default', true)}
               {renderInputField('Owner Name', 'owner_name', 'default', true)}
+              {renderInputField('Phone', 'phone', 'number-pad', true)}
+              {renderInputField('Email', 'email', 'email-address', true)}
+            </View>
+
+            <View style={styles.sectionContainer}>
+              <Text style={styles.sectionTitle}>Address Information</Text>
+              {renderInputField('Address', 'address', 'default', true)}
+              {renderInputField('State', 'state', 'default', true)}
+              {renderInputField('City', 'city', 'default', true)}
+              {renderInputField('Pincode', 'pincode', 'number-pad', true)}
             </View>
 
             <View style={styles.sectionContainer}>
@@ -244,14 +248,6 @@ const RequestRegister = () => {
               {renderInputField('GST No', 'gst_no', 'default', false)}
               {renderInputField('Aadhaar', 'aadhaar', 'number-pad', false)}
               {renderInputField('PAN Card', 'pancard', 'default', false)}
-            </View>
-
-            <View style={styles.sectionContainer}>
-              <Text style={styles.sectionTitle}>Address Information</Text>
-              {renderInputField('Address', 'address', 'default', true)}
-              {renderInputField('City', 'city', 'default', true)}
-              {renderInputField('Pincode', 'pincode', 'number-pad', true)}
-              {renderInputField('State', 'state', 'default', true)}
             </View>
 
             <TouchableOpacity
@@ -296,14 +292,14 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginBottom: height * 0.015,
     color: '#000',
-    fontFamily: poppins.bold,
+    fontFamily: Nunito.bold,
   },
   sectionTitle: {
     fontSize: width * 0.045,
     fontWeight: '600',
     color: '#333',
     marginBottom: height * 0.012,
-    fontFamily: poppins.semiBold,
+    fontFamily: Nunito.semiBold,
   },
   sectionContainer: {
     marginBottom: height * 0.02,
@@ -321,7 +317,7 @@ const styles = StyleSheet.create({
     fontSize: width * 0.035,
     lineHeight: height * 0.022,
     fontWeight: '500',
-    fontFamily: poppins.medium,
+    fontFamily: Nunito.medium,
   },
   fieldContainer: {
     marginBottom: height * 0.018,
@@ -331,12 +327,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#333',
     marginBottom: height * 0.008,
-    fontFamily: poppins.semiBold,
+    fontFamily: Nunito.semiBold,
   },
   asterisk: {
     color: '#FF0000',
     fontWeight: '700',
-    fontFamily: poppins.bold,
+    fontFamily: Nunito.bold,
   },
   input: {
     borderWidth: 1,
@@ -347,7 +343,7 @@ const styles = StyleSheet.create({
     fontSize: width * 0.038,
     color: '#000',
     backgroundColor: '#f9f9f9',
-    fontFamily: poppins.regular,
+    fontFamily: Nunito.regular,
   },
   inputError: {
     borderColor: '#FF0000',
@@ -359,7 +355,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     marginTop: height * 0.006,
     marginLeft: width * 0.02,
-    fontFamily: poppins.medium,
+    fontFamily: Nunito.medium,
   },
   button: {
     backgroundColor: '#D45500',
@@ -367,7 +363,7 @@ const styles = StyleSheet.create({
     borderRadius: width * 0.025,
     alignItems: 'center',
     marginTop: height * 0.015,
-    marginBottom: height * 0.02,
+    marginBottom: height * 0.06,
     shadowColor: '#D45500',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
@@ -381,6 +377,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '600',
     fontSize: width * 0.042,
-    fontFamily: poppins.semiBold,
+    fontFamily: Nunito.semiBold,
   },
 });

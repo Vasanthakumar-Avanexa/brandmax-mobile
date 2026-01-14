@@ -17,7 +17,7 @@ import {
 import fetchData from '../config/fetchData';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import showToast from '../utils/common_fn';
-import poppins from '../utils/fonts';
+import Nunito from '../utils/fonts';
 
 const { height: windowHeight, width: windowWidth } = Dimensions.get('window');
 
@@ -68,17 +68,17 @@ const LoginScreen = () => {
 
   return (
     <KeyboardAvoidingView
-      style={styles.keyboardView}
+      style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : -70}
     >
       <StatusBar backgroundColor="#D45500" barStyle="light-content" />
 
       <ScrollView
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ flexGrow: 1 }}
-        keyboardShouldPersistTaps="handled"
       >
+        {/* Top Orange Section with Logo */}
         <View style={styles.topContainer}>
           <Image
             source={require('../../assets/images/logo_back.png')}
@@ -87,10 +87,11 @@ const LoginScreen = () => {
           />
         </View>
 
+        {/* Bottom White Curved Card */}
         <View style={styles.bottomContainer}>
           <Text style={styles.title}>Enter your Mobile Number</Text>
-          <Text style={styles.title1}>
-            Please Enter your Mobile Number to Verify your Account
+          <Text style={styles.subtitle}>
+            Please Enter your Mobile Number{'\n'}to Verify your Account
           </Text>
 
           <View style={styles.inputContainer}>
@@ -98,31 +99,33 @@ const LoginScreen = () => {
               style={styles.input}
               placeholder="Enter your Email or Mobile"
               placeholderTextColor="#B0B0B0"
-              returnKeyType="done"
               value={userInput}
               onChangeText={setUserInput}
               autoCapitalize="none"
               keyboardType="default"
+              returnKeyType="done"
               onSubmitEditing={handleVerify}
             />
           </View>
 
           {loading ? (
-            <TouchableOpacity disabled style={styles.verifyButton}>
+            <TouchableOpacity disabled style={styles.button}>
               <ActivityIndicator size="small" color="#fff" />
             </TouchableOpacity>
           ) : (
-            <TouchableOpacity onPress={handleVerify} style={styles.verifyButton}>
-              <Text style={styles.verifyText}>Verify</Text>
+            <TouchableOpacity onPress={handleVerify} style={styles.button}>
+              <Text style={styles.buttonText}>Verify</Text>
             </TouchableOpacity>
           )}
 
-          <View style={styles.registerContainer}>
-            <Text style={styles.registerText}>Don't have an account? </Text>
+          <View style={styles.linkContainer}>
+            <Text style={styles.linkText}>Don't have an account? </Text>
             <TouchableOpacity onPress={handleRegisterNavigation}>
-              <Text style={styles.registerLink}>Register</Text>
+              <Text style={styles.link}>Register</Text>
             </TouchableOpacity>
           </View>
+
+          <View style={{ height: 50 }} />
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -130,92 +133,91 @@ const LoginScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  keyboardView: {
+  container: {
     flex: 1,
     backgroundColor: '#F4F0EC',
   },
+  scrollContent: {
+    flexGrow: 1,
+  },
   topContainer: {
     flex: 3,
+    backgroundColor: '#F4F0EC',
     justifyContent: 'center',
     alignItems: 'center',
     paddingVertical: 40,
   },
   logo: {
-    width: '75%',
-    height: windowHeight * 0.25,
+    width: '70%',
+    height: windowHeight * 0.15,
   },
   bottomContainer: {
     flex: 2,
-    alignItems: 'center',
     backgroundColor: '#fff',
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
-    paddingVertical: 30,
     paddingHorizontal: 20,
+    paddingTop: 30,
+    alignItems: 'center',
   },
   title: {
     fontSize: 22,
-    textAlign: 'center',
-    marginBottom: 20,
     fontWeight: '600',
     color: '#000',
-    fontFamily: poppins.semiBold,
-  },
-  title1: {
-    fontSize: 18,
     textAlign: 'center',
-    marginBottom: 20,
-    fontWeight: '600',
+    marginBottom: 10,
+    fontFamily: Nunito.semiBold,
+  },
+  subtitle: {
+    fontSize: 16,
     color: '#B0B0B0',
-    fontFamily: poppins.semiBold,
+    textAlign: 'center',
+    marginBottom: 30,
+    lineHeight: 22,
+    fontFamily: Nunito.regular,
   },
   inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    width: windowWidth * 0.8,
     backgroundColor: '#F4F0EC',
     borderRadius: 10,
-    width: windowWidth * 0.8,
     paddingHorizontal: 12,
     marginBottom: 25,
   },
   input: {
-    flex: 1,
     fontSize: 16,
     color: '#000',
-    paddingVertical: 10,
-    paddingLeft: 10,
-    fontFamily: poppins.regular,
+    paddingVertical: 12,
+    fontFamily: Nunito.regular,
   },
-  verifyButton: {
+  button: {
     backgroundColor: '#D45500',
     width: windowWidth * 0.75,
-    paddingVertical: 12,
+    paddingVertical: 14,
     borderRadius: 10,
     alignItems: 'center',
-  },
-  verifyText: {
-    fontSize: 18,
-    color: '#fff',
-    fontWeight: '600',
-    fontFamily: poppins.semiBold,
-  },
-  registerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'center',
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '600',
+    fontFamily: Nunito.semiBold,
+  },
+  linkContainer: {
+    flexDirection: 'row',
     marginTop: 25,
   },
-  registerText: {
+  linkText: {
     fontSize: 16,
     color: '#000',
-    fontFamily: poppins.regular,
+    fontFamily: Nunito.regular,
   },
-  registerLink: {
+  link: {
     fontSize: 16,
     color: '#D45500',
     fontWeight: '600',
     textDecorationLine: 'underline',
-    fontFamily: poppins.semiBold,
+    fontFamily: Nunito.semiBold,
   },
 });
 

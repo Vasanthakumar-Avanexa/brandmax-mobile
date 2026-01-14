@@ -10,12 +10,15 @@ import {
   StatusBar,
   Alert,
 } from 'react-native';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/Entypo';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import fetchData from '../config/fetchData';
 import showToast from '../utils/common_fn';
-import poppins from '../utils/fonts';
+import Nunito from '../utils/fonts';
+import { useDispatch } from 'react-redux';
+import { decrementCartCount, setCartCount } from '../store/ProductSlice';
 
 const { width, height } = Dimensions.get('window');
 
@@ -32,39 +35,60 @@ const Cart = ({ navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [updatingItems, setUpdatingItems] = useState({});
   const [outOfStockItems, setOutOfStockItems] = useState(new Set());
+  const [tax,setTax]=useState()
   const updateTimers = useRef({});
+  const isFocused = useRef(true);
+  const dispatch=useDispatch();
+
+  useFocusEffect(
+    useCallback(() => {
+      isFocused.current = true;
+      fetchCartItems(1);
+
+      return () => {
+        isFocused.current = false;
+      };
+    }, [])
+  );
 
   useEffect(() => {
-    fetchCartItems(1);
     return () => {
       Object.values(updateTimers.current).forEach(timer => clearTimeout(timer));
     };
   }, []);
 
   const fetchCartItems = async (page = 1) => {
-    try {
-      setLoading(page === 1);
-      const response = await fetchData.getCart(page, pagination.limit);
-      console.log('Cart Response:', response);
-      
+  try {
+    setLoading(page === 1);
+    const response = await fetchData.getCart(page, pagination.limit);
+    console.log('Cart Response:', response);
+    if (isFocused.current) {
       if (response.success) {
+        setTax(response?.tax);
         if (page === 1) {
           setCartItems(response.data || []);
         } else {
           setCartItems(prev => [...prev, ...(response.data || [])]);
         }
         setPagination(response.pagination || { page: 1, limit: 10, total: 0 });
+        
+        dispatch(setCartCount(response.pagination?.total || response.data?.length || 0));
       } else {
         showToast(response.message || 'Failed to load cart');
       }
-    } catch (error) {
-      console.error('Error fetching cart:', error);
+    }
+  } catch (error) {
+    console.error('Error fetching cart:', error);
+    if (isFocused.current) {
       showToast('Failed to load cart items');
-    } finally {
+    }
+  } finally {
+    if (isFocused.current) {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }
+};
 
   const handleLoadMore = () => {
     if (cartItems.length < pagination.total && !loading) {
@@ -107,40 +131,53 @@ const Cart = ({ navigation }) => {
 
     navigation.navigate('ConfirmOrderScreen', {
       cartItems,
+      tax,
       totalAmount,
       totalQuantity,
     });
   };
 
-  const handleDeleteItem = async (item) => {
-    Alert.alert(
-      'Delete Item',
-      'Are you sure you want to remove this item from cart?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await fetchData.deleteCartItem(
-                item.id,
-                item.product_id,
-                item.size_id
-              );
-              setCartItems(prev => prev.filter(i => i.id !== item.id));
-              showToast('Item removed from cart');
-            } catch (error) {
-              console.error('Delete error:', error.response || error);
-              showToast(
-                error.response?.data?.message || 'Failed to delete item'
-              );
-            }
+  const handleContinuePurchase=()=>{
+    navigation.navigate('MainDrawer', {
+                  screen: 'Tabs',
+                  params: {
+                    screen: 'Home'
+                  },
+                });
+  }
+
+ const handleDeleteItem = async (item) => {
+  Alert.alert(
+    'Delete Item',
+    'Are you sure you want to remove this item from cart?',
+    [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await fetchData.deleteCartItem(
+              item.id,
+              item.product_id,
+              item.size_id
+            );
+            setCartItems(prev => prev.filter(i => i.id !== item.id));
+            
+            dispatch(decrementCartCount());
+            
+            showToast('Item removed from cart');
+          } catch (error) {
+            console.error('Delete error:', error.response || error);
+            showToast(
+              error.response?.data?.message || 'Failed to delete item'
+            );
           }
         }
-      ]
-    );
-  };
+      }
+    ]
+  );
+};
 
   const handleQuantityUpdate = async (item, newQuantity) => {
     if (newQuantity < 1) {
@@ -209,121 +246,122 @@ const Cart = ({ navigation }) => {
     }, 0);
   };
 
-  const renderCartItem = ({ item }) => {
-    const isOutOfStock = item.available_qty === 0;
-    const exceedsStock = item.quantity > item.available_qty;
-    const hasRedBorder = outOfStockItems.has(item.id);
+const renderCartItem = ({ item }) => {
+  const isOutOfStock = item.available_qty === 0;
+  const exceedsStock = item.quantity > item.available_qty;
+  const hasRedBorder = outOfStockItems.has(item.id);
 
-    return (
-      <TouchableOpacity 
-        style={[
-          styles.container,
-          hasRedBorder && styles.outOfStockBorder
-        ]}
-        onPress={() => navigation.navigate('SingleProperty', { productId: item.product_id })}
-        activeOpacity={0.7}
-      >
-        <View style={styles.availableStockTopLeft}>
+  return (
+    <View 
+      style={[
+        styles.container,
+        hasRedBorder && styles.outOfStockBorder
+      ]}
+    >
+      <View style={styles.headerRow}>
+        <View style={styles.availableStockBadge}>
           <Text style={[
             styles.availableStockText,
-            (isOutOfStock || exceedsStock) && styles.outOfStockTopLeftText
+            (isOutOfStock || exceedsStock) && styles.outOfStockText
           ]}>
             {isOutOfStock ? 'Out of Stock' : `Available: ${item.available_qty}`}
           </Text>
         </View>
 
-        <View style={styles.deleteIconContainer}>
-          <TouchableOpacity 
-            onPress={() => handleDeleteItem(item)}
-            style={styles.deleteButton}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <MaterialIcons name="delete" size={width * 0.06} color="#D45500" />
-          </TouchableOpacity>
+        <TouchableOpacity 
+          onPress={() => handleDeleteItem(item)}
+          style={styles.deleteButton}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <MaterialIcons name="delete" size={width * 0.06} color="red" />
+        </TouchableOpacity>
+      </View>
+
+      <TouchableOpacity 
+        style={styles.contentRow}
+        onPress={() => navigation.navigate('SingleProperty', { productId: item.product_id })}
+        activeOpacity={0.7}
+      >
+        <View style={styles.detailsContainer}>
+          <Text style={styles.productName} numberOfLines={2}>
+            {item.product?.product_name || 'Product'}
+          </Text>
+
+          <View style={styles.detailRow}>
+            <Text style={styles.label}>Size:</Text>
+            <Text style={styles.value}>{item.size?.size || 'N/A'}</Text>
+          </View>
+
+          <View style={styles.detailRow}>
+            <Text style={styles.label}>Price:</Text>
+            <Text style={[styles.value, styles.priceText]}>
+              ₹{item.product?.product_price || 0}
+            </Text>
+          </View>
+
+          <View style={styles.detailRow}>
+            <Text style={styles.label}>Quantity:</Text>
+            <View style={styles.quantityContainer}>
+              <TouchableOpacity 
+                style={[
+                  styles.quantityButton,
+                  (isOutOfStock || item.quantity <= 1) && styles.disabledButton
+                ]}
+                onPress={() => !isOutOfStock && item.quantity > 1 && handleQuantityUpdate(item, item.quantity - 1)}
+                disabled={isOutOfStock || item.quantity <= 1}
+              >
+                <Text style={styles.quantityButtonText}>-</Text>
+              </TouchableOpacity>
+              
+              <View style={styles.quantityDisplay}>
+                <Text style={styles.quantityText}>{item.quantity || 0}</Text>
+                {updatingItems[item.id] && (
+                  <ActivityIndicator size="small" color="#D45500" style={styles.quantityLoader} />
+                )}
+              </View>
+              
+              <TouchableOpacity 
+                style={[
+                  styles.quantityButton,
+                  (isOutOfStock || item.quantity >= item.available_qty) && styles.disabledButton
+                ]}
+                onPress={() => {
+                  if (isOutOfStock) return;
+                  if (item.quantity >= item.available_qty) {
+                    showToast(`Only ${item.available_qty} items available in stock`);
+                    return;
+                  }
+                  handleQuantityUpdate(item, item.quantity + 1);
+                }}
+                disabled={isOutOfStock || item.quantity >= item.available_qty}
+              >
+                <Text style={styles.quantityButtonText}>+</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+          
+          <View style={styles.detailRow}>
+            <Text style={styles.label}>Total:</Text>
+            <Text style={[styles.value, styles.totalText]}>
+              ₹{((item.product?.product_price || 0) * (item.quantity || 0)).toFixed(2)}
+            </Text>
+          </View>
         </View>
 
-        <View style={styles.row}>
-          <View style={styles.detailsContainer}>
-            <View style={[styles.row, { marginBottom: height * 0.006 }]}>
-              <Text style={styles.text} numberOfLines={2}>
-                {item.product?.product_name || 'Product'}
-              </Text>
-            </View>
-
-            <View style={[styles.row, { alignItems: 'center' }]}>
-              <Text style={styles.text}>Size:</Text>
-              <Text style={styles.text}>{item.size?.size || 'N/A'}</Text>
-            </View>
-
-            <View style={styles.row}>
-              <Text style={styles.text}>Price:</Text>
-              <Text style={[styles.text, styles.priceText]}>
-                Rs.{item.product?.product_price || 0}
-              </Text>
-            </View>
-
-            <View style={styles.row}>
-              <Text style={styles.text}>Quantity:</Text>
-              <View style={styles.quantityContainer}>
-                <TouchableOpacity 
-                  style={[
-                    styles.quantityButton,
-                    (isOutOfStock || item.quantity <= 1) && styles.disabledButton
-                  ]}
-                  onPress={() => !isOutOfStock && item.quantity > 1 && handleQuantityUpdate(item, item.quantity - 1)}
-                  disabled={isOutOfStock || item.quantity <= 1}
-                >
-                  <Text style={styles.quantityButtonText}>-</Text>
-                </TouchableOpacity>
-                
-                <View style={styles.quantityDisplay}>
-                  <Text style={styles.quantityText}>{item.quantity || 0}</Text>
-                  {updatingItems[item.id] && (
-                    <ActivityIndicator size="small" color="#D45500" style={styles.quantityLoader} />
-                  )}
-                </View>
-                
-                <TouchableOpacity 
-                  style={[
-                    styles.quantityButton,
-                    (isOutOfStock || item.quantity >= item.available_qty) && styles.disabledButton
-                  ]}
-                  onPress={() => {
-                    if (isOutOfStock) return;
-                    if (item.quantity >= item.available_qty) {
-                      showToast(`Only ${item.available_qty} items available in stock`);
-                      return;
-                    }
-                    handleQuantityUpdate(item, item.quantity + 1);
-                  }}
-                  disabled={isOutOfStock || item.quantity >= item.available_qty}
-                >
-                  <Text style={styles.quantityButtonText}>+</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-            
-            <View style={styles.row}>
-              <Text style={styles.text}>Total:</Text>
-              <Text style={[styles.text, styles.totalText]}>
-                Rs.{((item.product?.product_price || 0) * (item.quantity || 0)).toFixed(2)}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.imageContainer}>
-            <Image
-              source={{
-                uri: item.product?.product_image || 'https://via.placeholder.com/150'
-              }}
-              style={styles.image}
-              resizeMode="cover"
-            />
-          </View>
+        <View style={styles.imageContainer}>
+          <Image
+            source={{
+              uri: item.product?.product_image || 'https://www.gstatic.com/webp/gallery/4.jpg'
+            }}
+            style={styles.image}
+            resizeMode="cover"
+          />
         </View>
       </TouchableOpacity>
-    );
-  };
+    </View>
+  );
+};
+
 
   const renderFooter = () => {
     if (!loading || pagination.page === 1) return null;
@@ -380,17 +418,34 @@ const Cart = ({ navigation }) => {
               <Text style={styles.label}>Net Amount:</Text>
               <Text style={styles.value}>₹{getNetAmount().toFixed(2)}</Text>
             </View>
+            
+            <View style={styles.summaryRow}>
+              <Text style={styles.label}>Tax:</Text>
+              <Text style={styles.value}>{tax || 0}%</Text>
+            </View>
           </View>
 
-          <TouchableOpacity 
-            onPress={handleConfirmOrder} 
-            style={styles.confirmButton}
-          >
-            <Text style={styles.confirmButtonText}>
-              Confirm Order
-            </Text>
-            <Icon name="forward" size={width * 0.045} color="#fff" />
-          </TouchableOpacity>
+          <View style={styles.buttonContainer}>
+            <TouchableOpacity 
+              onPress={handleContinuePurchase} 
+              style={styles.continuePurchaseButton}
+            >
+              <Icon name="reply" size={width * 0.05} color="#D45500" />
+              <Text style={styles.continuePurchaseButtonText}>
+                Continue Purchase
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              onPress={handleConfirmOrder} 
+              style={styles.confirmButton}
+            >
+              <Text style={styles.confirmButtonText}>
+                Confirm Order
+              </Text>
+              <Icon name="forward" size={width * 0.05} color="#fff" />
+            </TouchableOpacity>
+          </View>
         </View>
       )}
     </View>
@@ -408,94 +463,125 @@ const styles = StyleSheet.create({
   },
   container: {
     width: width * 0.9,
-    marginLeft: width * 0.05,
-    marginTop: height * 0.012,
-    marginBottom: height * 0.012,
-    padding: width * 0.04,
+    alignSelf: 'center',
+    marginVertical: height * 0.008,
+    padding: width * 0.038,
     backgroundColor: '#fff',
     elevation: 5,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.8,
-    shadowRadius: 2,
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
     borderRadius: width * 0.025,
   },
-  deleteIconContainer: {
-    position: 'absolute',
-    top: height * 0.012,
-    right: width * 0.025,
-    zIndex: 1,
-  },
-  deleteButton: {
-    padding: width * 0.013,
-  },
-  row: {
+  headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: height * 0.006,
+    marginBottom: height * 0.012,
+  },
+  availableStockBadge: {
+    backgroundColor: 'rgba(212, 85, 0, 0.1)',
+    paddingHorizontal: width * 0.025,
+    paddingVertical: height * 0.005,
+    borderRadius: width * 0.015,
+  },
+  availableStockText: {
+    fontSize: width * 0.032,
+    color: '#D45500',
+    fontFamily: Nunito.bold,
+  },
+  outOfStockText: {
+    color: '#FF0000',
+  },
+  deleteButton: {
+    padding: width * 0.015,
+    backgroundColor: 'rgba(212, 85, 0, 0.1)',
+    borderRadius: width * 0.015,
+  },
+  contentRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
   },
   detailsContainer: {
-    width: '50%',
-    marginTop: '6%',
+    flex: 1,
+    marginRight: width * 0.025,
+    justifyContent: 'space-between',
   },
-  text: {
+  productName: {
     fontSize: width * 0.04,
-    marginRight: width * 0.013,
     color: '#333',
-    fontFamily: poppins.regular,
+    fontFamily: Nunito.semiBold,
+    marginBottom: height * 0.008,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: height * 0.006,
+  },
+  label: {
+    fontSize: width * 0.037,
+    color: '#555',
+    fontFamily: Nunito.regular,
+  },
+  value: {
+    fontSize: width * 0.037,
+    color: '#333',
+    fontFamily: Nunito.semiBold,
   },
   priceText: {
     color: 'red',
-    fontFamily: poppins.medium,
+    fontFamily: Nunito.semiBold,
   },
   totalText: {
     color: 'red', 
-    fontFamily: poppins.bold,
+    fontFamily: Nunito.bold,
   },
   imageContainer: {
     backgroundColor: '#F4F0EC',
-    marginLeft: width * 0.07,
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: width * 0.025,
+    borderRadius: width * 0.02,
+    overflow: 'hidden',
+    width: width * 0.35,
+    height: width * 0.42,
   },
   image: {
-    height: width * 0.36,
-    width: width * 0.36,
-    borderRadius: width * 0.013,
+    width: '100%',
+    height: '100%',
   },
   quantityContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: width * 0.02,
+    gap: width * 0.015,
   },
   quantityButton: {
     backgroundColor: '#D45500',
-    width: width * 0.07,
-    height: width * 0.07,
+    width: width * 0.065,
+    height: width * 0.065,
     borderRadius: width * 0.013,
     justifyContent: 'center',
     alignItems: 'center',
   },
   quantityButtonText: {
     color: '#fff',
-    fontSize: width * 0.042,
-    fontFamily: poppins.bold,
+    fontSize: width * 0.04,
+    fontFamily: Nunito.bold,
   },
   quantityDisplay: {
-    minWidth: width * 0.1,
+    minWidth: width * 0.08,
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'center',
   },
   quantityText: {
-    fontSize: width * 0.04,
+    fontSize: width * 0.037,
     color: '#D45500',
-    fontFamily: poppins.bold,
+    fontFamily: Nunito.bold,
   },
   quantityLoader: {
-    marginLeft: width * 0.013,
+    marginLeft: width * 0.01,
   },
   bottomFixed: {
     position: 'absolute',
@@ -503,7 +589,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     backgroundColor: '#fff',
-    paddingVertical: height * 0.018,
+    paddingVertical: height * 0.015,
     paddingHorizontal: width * 0.05,
     elevation: 10,
     shadowColor: '#000',
@@ -516,37 +602,49 @@ const styles = StyleSheet.create({
   priceContainer: {
     backgroundColor: '#f9f9f9',
     borderRadius: width * 0.02,
-    padding: width * 0.04,
-    marginBottom: height * 0.012,
+    padding: width * 0.035,
+    marginBottom: height * 0.03,
   },
   summaryRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginVertical: height * 0.005,
+    marginVertical: height * 0.001,
   },
-  label: {
-    fontSize: width * 0.04,
-    color: '#444',
-    fontFamily: poppins.medium,
+  buttonContainer: {
+    flexDirection: 'row',
+    gap: width * 0.025,
   },
-  value: {
-    fontSize: width * 0.04,
-    color: '#D45500',
-    fontFamily: poppins.bold,
-  },
-  confirmButton: {
-    backgroundColor: '#D45500',
-    paddingVertical: height * 0.018,
+  continuePurchaseButton: {
+    flex: 1,
+    backgroundColor: '#fff',
+    paddingVertical: height * 0.016,
     borderRadius: width * 0.025,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: width * 0.025,
+    gap: width * 0.02,
+    borderWidth: 2,
+    borderColor: '#D45500',
+  },
+  continuePurchaseButtonText: {
+    color: '#D45500',
+    fontSize: width * 0.038,
+    fontFamily: Nunito.bold,
+  },
+  confirmButton: {
+    flex: 1,
+    backgroundColor: '#D45500',
+    paddingVertical: height * 0.016,
+    borderRadius: width * 0.025,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: width * 0.02,
   },
   confirmButtonText: {
     color: '#fff',
-    fontSize: width * 0.045,
-    fontFamily: poppins.bold,
+    fontSize: width * 0.038,
+    fontFamily: Nunito.bold,
   },
   loader: {
     flex: 1,
@@ -555,7 +653,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8f8f8',
   },
   footerLoader: {
-    paddingVertical: height * 0.025,
+    paddingVertical: height * 0.02,
     alignItems: 'center',
   },
   emptyContainer: {
@@ -565,10 +663,10 @@ const styles = StyleSheet.create({
     paddingVertical: height * 0.12,
   },
   emptyText: {
-    fontSize: width * 0.045,
+    fontSize: width * 0.042,
     color: '#999',
-    marginTop: height * 0.025,
-    fontFamily: poppins.regular,
+    marginTop: height * 0.02,
+    fontFamily: Nunito.regular,
   },
   outOfStockBorder: {
     borderWidth: 2,
@@ -578,26 +676,6 @@ const styles = StyleSheet.create({
   disabledButton: {
     backgroundColor: '#ccc',
     opacity: 0.7,
-  },
-  availableStockTopLeft: {
-    position: 'absolute',
-    top: height * 0.012,
-    left: width * 0.025,
-    backgroundColor: 'rgba(255,255,255,0.9)',
-    paddingHorizontal: width * 0.02,
-    paddingVertical: height * 0.005,
-    borderRadius: width * 0.015,
-    zIndex: 1,
-    elevation: 3,
-  },
-  availableStockText: {
-    fontSize: width * 0.033,
-    color: '#D45500',
-    fontFamily: poppins.bold,
-  },
-  outOfStockTopLeftText: {
-    color: '#FF0000',
-    fontFamily: poppins.bold,
   },
 });
 
