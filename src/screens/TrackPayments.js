@@ -311,7 +311,7 @@ const TrackPayments = () => {
                 <Text style={styles.label}>Available Limit</Text>
               </View>
               <Text style={styles.amountAvailable}>
-                ₹{formatAmount(overall.totalTarget - overall.totalPurchaseAmount)}
+                ₹{formatAmount(overall.totalTarget - overall.remainingAmount)}
               </Text>
             </View>
 

@@ -43,7 +43,7 @@ const PaymentModal = ({
   onPaymentFailure,
   userDetails = {},
   showAmountInput = false,
-  remainingBalance = 0, // Total outstanding balance to pay
+  remainingBalance = 0,
 }) => {
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState('confirm');
@@ -53,7 +53,14 @@ const PaymentModal = ({
 
   useEffect(() => {
     if (visible) {
-      console.log('Payment Modal opened | amount:', amount, 'remainingBalance:', remainingBalance, 'showAmountInput:', showAmountInput);
+      console.log(
+        'Payment Modal opened | amount:',
+        amount,
+        'remainingBalance:',
+        remainingBalance,
+        'showAmountInput:',
+        showAmountInput,
+      );
       setPaymentResult(null);
       setLoading(false);
       setStep('confirm');
@@ -73,28 +80,28 @@ const PaymentModal = ({
     if (showAmountInput) {
       const numAmount = parseFloat(manualAmount);
       const remaining = parseFloat(remainingBalance) || 0;
-      
+
       if (!manualAmount || manualAmount.trim() === '') {
         setAmountError('Please enter an amount');
         return false;
       }
-      
+
       if (isNaN(numAmount) || numAmount <= 0) {
         setAmountError('Please enter a valid amount');
         return false;
       }
-      
+
       if (numAmount < 1) {
         setAmountError('Minimum amount is ₹1');
         return false;
       }
-      
+
       if (numAmount > remaining) {
         setAmountError(`Amount cannot exceed ₹${remaining.toFixed(2)}`);
         showToast(`Maximum payment amount is ₹${remaining.toFixed(2)}`);
         return false;
       }
-      
+
       setAmountError('');
       return true;
     }
@@ -108,15 +115,14 @@ const PaymentModal = ({
     return parseFloat(amount) || 0;
   };
 
-  const updateRemainingBalance = async (paidAmount) => {
+  const updateRemainingBalance = async paidAmount => {
     try {
       const currentRemaining = parseFloat(remainingBalance) || 0;
       const newRemaining = Math.max(0, currentRemaining - paidAmount);
-      
-      // Store in AsyncStorage
+
       await AsyncStorage.setItem('RemainingBalance', newRemaining.toString());
       console.log('Updated remaining balance:', newRemaining);
-      
+
       return newRemaining;
     } catch (error) {
       console.error('Error updating remaining balance:', error);
@@ -142,17 +148,17 @@ const PaymentModal = ({
     }
   };
 
-  const verifyPayment = async (paymentData) => {
+  const verifyPayment = async paymentData => {
     try {
       setLoading(true);
       const paymentAmount = getPaymentAmount();
-      
+
       const verificationData = {
         order_id: paymentData.razorpay_order_id,
         payment_id: paymentData.razorpay_payment_id,
         amount: paymentAmount,
-        order_pay_type: "Online",
-        user_order_id: userOrderId
+        order_pay_type: showAmountInput ? 'COD' : 'Online',
+        user_order_id: userOrderId,
       };
 
       const headers = {
@@ -164,7 +170,6 @@ const PaymentModal = ({
       const response = await fetchData.verifyOrder(verificationData, headers);
 
       if (response?.success) {
-        // Update remaining balance after successful verification
         await updateRemainingBalance(paymentAmount);
         return true;
       } else {
@@ -179,7 +184,6 @@ const PaymentModal = ({
   };
 
   const handlePayment = async () => {
-    // Validate amount if input field is shown
     if (!validateAmount()) {
       return;
     }
@@ -197,7 +201,8 @@ const PaymentModal = ({
       const paymentAmount = getPaymentAmount();
 
       const options = {
-        description: orderData.description || `Payment for Order #${userOrderId || 'N/A'}`,
+        description:
+          orderData.description || `Payment for Order #${userOrderId || 'N/A'}`,
         image: orderData.image,
         currency: orderData.currency || 'INR',
         key: orderData.key,
@@ -217,7 +222,7 @@ const PaymentModal = ({
       setLoading(false);
 
       RazorpayCheckout.open(options)
-        .then(async (data) => {
+        .then(async data => {
           try {
             setLoading(true);
             const isVerified = await verifyPayment(data);
@@ -248,11 +253,10 @@ const PaymentModal = ({
             setLoading(false);
           }
         })
-        .catch((error) => {
+        .catch(error => {
           console.log('Razorpay error:', error);
-          
+
           if (error.code === '2' || error.code === 2) {
-            // User cancelled payment
             const cancelData = {
               error,
               message: 'Payment cancelled by user',
@@ -262,7 +266,10 @@ const PaymentModal = ({
           } else {
             const failureData = {
               error,
-              message: error.description || error.message || 'Payment could not be completed',
+              message:
+                error.description ||
+                error.message ||
+                'Payment could not be completed',
               cancelled: false,
             };
 
@@ -272,7 +279,7 @@ const PaymentModal = ({
         });
     } catch (error) {
       setLoading(false);
-      
+
       const failureData = {
         error,
         message: error.message || 'Failed to process payment',
@@ -285,7 +292,7 @@ const PaymentModal = ({
 
   const handleClose = useCallback(() => {
     if (loading) return;
-    
+
     console.log('Closing payment modal');
     onClose();
   }, [loading, onClose]);
@@ -304,21 +311,18 @@ const PaymentModal = ({
     setAmountError('');
   }, []);
 
-  const handleAmountChange = (text) => {
-    // Remove non-numeric characters except decimal point
+  const handleAmountChange = text => {
     const cleanedText = text.replace(/[^0-9.]/g, '');
-    
-    // Ensure only one decimal point
+
     const parts = cleanedText.split('.');
     if (parts.length > 2) {
       return;
     }
-    
-    // Limit decimal places to 2
+
     if (parts[1] && parts[1].length > 2) {
       return;
     }
-    
+
     setManualAmount(cleanedText);
     setAmountError('');
   };
@@ -327,7 +331,7 @@ const PaymentModal = ({
     if (paymentResult?.type === 'success') {
       return renderSuccessStep();
     }
-    
+
     if (paymentResult?.type === 'failed') {
       return renderFailedStep();
     }
@@ -336,13 +340,19 @@ const PaymentModal = ({
   };
 
   const renderConfirmStep = () => {
-    const displayAmount = showAmountInput ? parseFloat(manualAmount || 0) : parseFloat(amount || 0);
+    const displayAmount = showAmountInput
+      ? parseFloat(manualAmount || 0)
+      : parseFloat(amount || 0);
     const remaining = parseFloat(remainingBalance) || 0;
 
     return (
       <View style={styles.content}>
         <View style={[styles.iconContainer, { backgroundColor: '#e8f5e9' }]}>
-          <MIcon name="check-circle" size={SCREEN_HEIGHT * 0.05} color={COLORS.success} />
+          <MIcon
+            name="check-circle"
+            size={SCREEN_HEIGHT * 0.05}
+            color={COLORS.success}
+          />
         </View>
 
         <Text style={styles.title}>Confirm Payment</Text>
@@ -353,7 +363,8 @@ const PaymentModal = ({
             <View style={styles.balanceRow}>
               <Text style={styles.balanceLabel}>Remaining Balance:</Text>
               <Text style={styles.balanceAmount}>
-                ₹{remaining.toLocaleString('en-IN', {
+                ₹
+                {remaining.toLocaleString('en-IN', {
                   minimumFractionDigits: 2,
                   maximumFractionDigits: 2,
                 })}
@@ -369,7 +380,10 @@ const PaymentModal = ({
               <View style={styles.inputContainer}>
                 <Text style={styles.currencySymbol}>₹</Text>
                 <TextInput
-                  style={[styles.amountInput, amountError ? styles.inputError : null]}
+                  style={[
+                    styles.amountInput,
+                    amountError ? styles.inputError : null,
+                  ]}
                   value={manualAmount}
                   onChangeText={handleAmountChange}
                   placeholder="0.00"
@@ -383,7 +397,8 @@ const PaymentModal = ({
                 <Text style={styles.errorText}>{amountError}</Text>
               ) : (
                 <Text style={styles.helperText}>
-                  Maximum: ₹{remaining.toLocaleString('en-IN', {
+                  Maximum: ₹
+                  {remaining.toLocaleString('en-IN', {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,
                   })}
@@ -394,14 +409,15 @@ const PaymentModal = ({
             <>
               <Text style={styles.amountLabel}>Amount to Pay</Text>
               <Text style={styles.amountValue}>
-                ₹{displayAmount.toLocaleString('en-IN', {
+                ₹
+                {displayAmount.toLocaleString('en-IN', {
                   minimumFractionDigits: 2,
                   maximumFractionDigits: 2,
                 })}
               </Text>
             </>
           )}
-          
+
           {userOrderId && (
             <View style={styles.orderIdContainer}>
               <Text style={styles.orderIdLabel}>Order ID:</Text>
@@ -419,20 +435,34 @@ const PaymentModal = ({
             <ActivityIndicator color={COLORS.white} />
           ) : (
             <>
-              <MIcon name="lock" size={SCREEN_HEIGHT * 0.024} color={COLORS.white} />
-              <Text style={[styles.buttonText, { marginLeft: SCREEN_WIDTH * 0.02 }]}>
+              <MIcon
+                name="lock"
+                size={SCREEN_HEIGHT * 0.024}
+                color={COLORS.white}
+              />
+              <Text
+                style={[styles.buttonText, { marginLeft: SCREEN_WIDTH * 0.02 }]}
+              >
                 Pay Now
               </Text>
             </>
           )}
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.cancelButton} onPress={handleClose} disabled={loading}>
+        <TouchableOpacity
+          style={styles.cancelButton}
+          onPress={handleClose}
+          disabled={loading}
+        >
           <Text style={styles.cancelButtonText}>Cancel</Text>
         </TouchableOpacity>
 
         <View style={styles.securityNote}>
-          <MIcon name="shield-check" size={SCREEN_HEIGHT * 0.018} color={COLORS.gray} />
+          <MIcon
+            name="shield-check"
+            size={SCREEN_HEIGHT * 0.018}
+            color={COLORS.gray}
+          />
           <Text style={styles.securityText}>
             Secured by Razorpay. Your payment information is encrypted.
           </Text>
@@ -447,16 +477,28 @@ const PaymentModal = ({
     return (
       <View style={styles.content}>
         <View style={[styles.iconContainer, { backgroundColor: '#e8f5e9' }]}>
-          <MIcon name="check-circle" size={SCREEN_HEIGHT * 0.08} color={COLORS.success} />
+          <MIcon
+            name="check-circle"
+            size={SCREEN_HEIGHT * 0.08}
+            color={COLORS.success}
+          />
         </View>
 
         <Text style={styles.title}>Payment Successful!</Text>
-        <Text style={styles.subtitle}>Your payment has been completed successfully</Text>
+        <Text style={styles.subtitle}>
+          Your payment has been completed successfully
+        </Text>
 
-        <View style={[styles.amountCard, { backgroundColor: '#e8f5e9', borderColor: COLORS.success + '20' }]}>
+        <View
+          style={[
+            styles.amountCard,
+            { backgroundColor: '#e8f5e9', borderColor: COLORS.success + '20' },
+          ]}
+        >
           <Text style={styles.amountLabel}>Amount Paid</Text>
           <Text style={[styles.amountValue, { color: COLORS.success }]}>
-            ₹{parseFloat(paymentAmount).toLocaleString('en-IN', {
+            ₹
+            {parseFloat(paymentAmount).toLocaleString('en-IN', {
               minimumFractionDigits: 2,
               maximumFractionDigits: 2,
             })}
@@ -475,14 +517,24 @@ const PaymentModal = ({
           style={[styles.button, { backgroundColor: COLORS.success }]}
           onPress={handleSuccessDone}
         >
-          <MIcon name="check" size={SCREEN_HEIGHT * 0.024} color={COLORS.white} />
-          <Text style={[styles.buttonText, { marginLeft: SCREEN_WIDTH * 0.02 }]}>
+          <MIcon
+            name="check"
+            size={SCREEN_HEIGHT * 0.024}
+            color={COLORS.white}
+          />
+          <Text
+            style={[styles.buttonText, { marginLeft: SCREEN_WIDTH * 0.02 }]}
+          >
             Done
           </Text>
         </TouchableOpacity>
 
         <View style={styles.securityNote}>
-          <MIcon name="shield-check" size={SCREEN_HEIGHT * 0.018} color={COLORS.success} />
+          <MIcon
+            name="shield-check"
+            size={SCREEN_HEIGHT * 0.018}
+            color={COLORS.success}
+          />
           <Text style={[styles.securityText, { color: COLORS.success }]}>
             Payment verified and secured
           </Text>
@@ -494,18 +546,29 @@ const PaymentModal = ({
   const renderFailedStep = () => (
     <View style={styles.content}>
       <View style={[styles.iconContainer, { backgroundColor: '#ffebee' }]}>
-        <MIcon name="close-circle" size={SCREEN_HEIGHT * 0.08} color={COLORS.error} />
+        <MIcon
+          name="close-circle"
+          size={SCREEN_HEIGHT * 0.08}
+          color={COLORS.error}
+        />
       </View>
 
       <Text style={styles.title}>Payment Failed</Text>
       <Text style={styles.subtitle}>
-        { 'Your payment could not be completed'}
+        {'Your payment could not be completed'}
       </Text>
 
       {paymentResult?.data?.paymentId && (
-        <View style={[styles.amountCard, { backgroundColor: '#ffebee', borderColor: COLORS.error + '20' }]}>
+        <View
+          style={[
+            styles.amountCard,
+            { backgroundColor: '#ffebee', borderColor: COLORS.error + '20' },
+          ]}
+        >
           <Text style={styles.paymentIdLabel}>Payment ID:</Text>
-          <Text style={styles.paymentIdValue}>{paymentResult.data.paymentId}</Text>
+          <Text style={styles.paymentIdValue}>
+            {paymentResult.data.paymentId}
+          </Text>
           <Text style={styles.contactSupportText}>
             Please contact support with this ID
           </Text>
@@ -516,7 +579,11 @@ const PaymentModal = ({
         style={[styles.button, { backgroundColor: COLORS.primary }]}
         onPress={handleTryAgain}
       >
-        <MIcon name="refresh" size={SCREEN_HEIGHT * 0.024} color={COLORS.white} />
+        <MIcon
+          name="refresh"
+          size={SCREEN_HEIGHT * 0.024}
+          color={COLORS.white}
+        />
         <Text style={[styles.buttonText, { marginLeft: SCREEN_WIDTH * 0.02 }]}>
           Try Again
         </Text>
@@ -559,7 +626,11 @@ const PaymentModal = ({
                 onPress={handleClose}
                 disabled={loading}
               >
-                <MIcon name="close" size={SCREEN_HEIGHT * 0.028} color={COLORS.dark} />
+                <MIcon
+                  name="close"
+                  size={SCREEN_HEIGHT * 0.028}
+                  color={COLORS.dark}
+                />
               </TouchableOpacity>
             )}
 

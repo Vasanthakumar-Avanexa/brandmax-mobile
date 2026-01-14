@@ -205,7 +205,7 @@ const ConfirmOrderScreen = ({ route, navigation }) => {
                     setSelectedAddress(null);
                   }
                 } else {
-                  showToast(result.message || 'Failed to delete address');
+                  showToast( 'Failed to delete address');
                 }
               } catch (error) {
                 showToast('Failed to delete address');
@@ -343,7 +343,7 @@ const ConfirmOrderScreen = ({ route, navigation }) => {
         
         setPaymentModalVisible(true);
       } else {
-        showToast(result.message || 'Failed to place order. Please try again.');
+        showToast('Failed to place order. Please try again.');
       }
     } catch (error) {
       setLoading(false);
@@ -373,7 +373,7 @@ const ConfirmOrderScreen = ({ route, navigation }) => {
     }
     
     // For other payment failures
-    showToast(error.message || 'Payment failed. Please try again.');
+    showToast('Payment failed. Please try again.');
   };
 
   const confirmOrderCOD = async () => {
@@ -408,7 +408,7 @@ const ConfirmOrderScreen = ({ route, navigation }) => {
         setOrderSuccessModalVisible(true);
         dispatch(setCartCount(0));
       } else {
-        showToast(result.message || 'Order failed. Please try again.');
+        showToast('Order failed. Please try again.');
       }
     } catch (error) {
       setLoading(false);
