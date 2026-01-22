@@ -96,7 +96,8 @@ const PaymentModal = ({
         return false;
       }
 
-      if (numAmount > remaining) {
+      const tolerance = 0.01;
+      if (numAmount > remaining + tolerance) {
         setAmountError(`Amount cannot exceed ₹${remaining.toFixed(2)}`);
         showToast(`Maximum payment amount is ₹${remaining.toFixed(2)}`);
         return false;
@@ -324,7 +325,18 @@ const PaymentModal = ({
     }
 
     setManualAmount(cleanedText);
-    setAmountError('');
+    
+    if (amountError) {
+      setAmountError('');
+    }
+  };
+
+  const handleBalanceClick = () => {
+    if (showAmountInput && !loading) {
+      const remaining = parseFloat(remainingBalance) || 0;
+      setManualAmount(remaining.toFixed(2));
+      setAmountError('');
+    }
   };
 
   const renderCurrentStep = () => {
@@ -359,7 +371,12 @@ const PaymentModal = ({
         <Text style={styles.subtitle}>Please review the payment details</Text>
 
         {remaining > 0 && (
-          <View style={styles.balanceCard}>
+          <TouchableOpacity 
+            style={styles.balanceCard}
+            onPress={handleBalanceClick}
+            activeOpacity={showAmountInput ? 0.7 : 1}
+            disabled={!showAmountInput || loading}
+          >
             <View style={styles.balanceRow}>
               <Text style={styles.balanceLabel}>Remaining Balance:</Text>
               <Text style={styles.balanceAmount}>
@@ -370,7 +387,7 @@ const PaymentModal = ({
                 })}
               </Text>
             </View>
-          </View>
+          </TouchableOpacity>
         )}
 
         <View style={styles.amountCard}>
@@ -727,6 +744,13 @@ const styles = StyleSheet.create({
     fontSize: SCREEN_HEIGHT * 0.02,
     color: COLORS.warning,
     fontFamily: Nunito.bold,
+  },
+  balanceHint: {
+    fontSize: SCREEN_HEIGHT * 0.012,
+    color: COLORS.gray,
+    fontFamily: Nunito.regular,
+    marginTop: SCREEN_HEIGHT * 0.005,
+    textAlign: 'center',
   },
   amountCard: {
     backgroundColor: '#fff5f0',

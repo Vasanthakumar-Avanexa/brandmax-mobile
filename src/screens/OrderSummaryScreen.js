@@ -212,7 +212,7 @@ const OrderSummaryScreen = ({ route, navigation }) => {
         </View>
 
         <View style={styles.row}>
-          <Text style={styles.label}>Payment Method</Text>
+          <Text style={styles.label}>Order Type</Text>
           <Text style={styles.value}>
             {order?.order_pay_type?.toUpperCase() || 'CASH ON DELIVERY'}
           </Text>
